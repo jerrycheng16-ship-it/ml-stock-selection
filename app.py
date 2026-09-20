@@ -68,6 +68,16 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# -------------------------------------------------------------
+# 🌐 網頁瀏覽人數計數器 (真實從 1 開始計算)
+# -------------------------------------------------------------
+if "page_views" not in st.session_state:
+    st.session_state.page_views = 1
+else:
+    if "counted" not in st.session_state:
+        st.session_state.page_views += 1
+        st.session_state.counted = True
+
 # 🛠️ 主標題與功能描述
 st.title("多因子機器學習選股與回測儀表板")
 st.markdown("### 【功能說明】結合多因子量化模型（價值、動態、品質、低波動、規模）與機器學習演算法的智慧選股、動態多空對沖回測與績效分析系統。")
@@ -429,6 +439,10 @@ if final_stock_pool:
 else:
     st.sidebar.warning("目前觀察池為空")
 
+# 🌐 瀏覽人次移動至側邊欄最下方低調呈現
+st.sidebar.markdown("---")
+st.sidebar.caption(f"👀 總瀏覽人次：{st.session_state.page_views:,} | 系統版本：v1.2")
+
 st.sidebar.markdown("---")
 
 # 🚀 回測按鈕與使用說明按鈕「左右並排」
@@ -674,6 +688,14 @@ if run_backtest:
                                 display_df[col] = display_df[col].round(2).astype(str) + "%"
                         st.dataframe(display_df, use_container_width=True)
 
-                    # 5. 原始因子與特徵明細資料 (Raw Data)
-                    with st.expander("📋 【點擊展開：原始因子與特徵明細資料 (Raw Data)】"):
-                        st.dataframe(raw_data_df, use_container_width=True)
+                    # 5. 原始因子與特徵明細資料 (Raw Data) - 🔒 安全防護
+                    st.markdown("---")
+                    with st.expander("📋 【點擊展開：原始因子與特徵明細資料 (Raw Data - 🔒 管理員專用)】"):
+                        password_input = st.text_input("請輸入管理員密碼以檢視 Raw Data", type="password", key="raw_data_pwd")
+                        if password_input == "Jerry0722":
+                            st.success("✅ 密碼正確！已解鎖原始特徵明細資料：")
+                            st.dataframe(raw_data_df, use_container_width=True)
+                        elif password_input:
+                            st.error("❌ 密碼錯誤，請重新輸入。")
+                        else:
+                            st.info("💡 提示：本區塊含有機器學習特徵與原始模型數據，需輸入正確授權密碼方可解鎖。")
