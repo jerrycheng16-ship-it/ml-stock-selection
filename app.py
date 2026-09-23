@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import yfinance as yf
+from requests import Session
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.linear_model import RidgeCV
 
@@ -63,17 +64,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# -------------------------------------------------------------
-# 🌐 網頁瀏覽人數計數器
-# -------------------------------------------------------------
-if "page_views" not in st.session_state:
-    st.session_state.page_views = 1
-else:
-    if "counted" not in st.session_state:
-        st.session_state.page_views += 1
-        st.session_state.counted = True
-
-# 初始化 Session State 儲存回測狀態
 if "backtest_executed" not in st.session_state:
     st.session_state.backtest_executed = False
 
@@ -232,7 +222,7 @@ US_STOCK_MAP = {
 US_KEYS = list(US_STOCK_MAP.keys())
 
 # -------------------------------------------------------------
-# 3. 跨資產 ETF 配置字典
+# 3. 跨資產 ETF 配置字典 (含 BNO)
 # -------------------------------------------------------------
 ETF_STOCK_MAP = {
     "SPY": "S&P 500 ETF", "QQQ": "Nasdaq 100 ETF", "TLT": "20+年期美國公債 ETF",
@@ -241,7 +231,7 @@ ETF_STOCK_MAP = {
     "EWY": "MSCI 韓國 ETF", "HYG": "美國高收益債 ETF", "EMB": "新興市場美元債 ETF",
     "NDIA": "印度概念 ETF", "ASHR": "中國滬深 300 ETF", "AAXJ": "亞洲除日本 ETF",
     "EEM": "MSCI 新興市場 ETF", "SLV": "白銀信託 ETF", "EWZ": "MSCI 巴西 ETF",
-    "IEF": "7-10年期美國公債 ETF"
+    "IEF": "7-10年期美國公債 ETF", "BNO": "布蘭特原油信託 ETF"
 }
 ETF_KEYS = list(ETF_STOCK_MAP.keys())
 
@@ -280,7 +270,7 @@ if "last_market_key" not in st.session_state or st.session_state.last_market_key
     st.session_state.my_multiselect = default_selected
     st.session_state.manual_added_stocks = [default_manual]
     st.session_state.excluded_stocks = []
-    st.session_state.backtest_executed = False  # 切換市場時重置回測狀態
+    st.session_state.backtest_executed = False
 
 if "selected_stocks_state" not in st.session_state:
     st.session_state.selected_stocks_state = default_selected
@@ -367,13 +357,13 @@ else:
         st.session_state.my_multiselect = KEYS_POOL[:15]
         st.session_state.excluded_stocks = []
         st.rerun()
-    if c3.button("全部列出 (19檔)"):
+    if c3.button("全部列出 (20檔)"):
         st.session_state.selected_stocks_state = KEYS_POOL
         st.session_state.my_multiselect = KEYS_POOL
         st.session_state.excluded_stocks = []
         st.rerun()
     if c4.button("核心資產組合"):
-        core_etfs = ["SPY", "QQQ", "TLT", "GLD", "IWM", "VNQ", "IEF", "HYG"]
+        core_etfs = ["SPY", "QQQ", "TLT", "GLD", "IWM", "VNQ", "IEF", "HYG", "BNO"]
         st.session_state.selected_stocks_state = core_etfs
         st.session_state.my_multiselect = core_etfs
         st.session_state.excluded_stocks = []
@@ -482,8 +472,6 @@ else:
     st.sidebar.warning("目前觀察池為空")
 
 st.sidebar.markdown("---")
-st.sidebar.caption(f"👀 總瀏覽人次：{st.session_state.page_views:,} | 系統版本：v1.3")
-st.sidebar.markdown("---")
 
 col_btn1, col_btn2 = st.columns([3, 1])
 with col_btn1:
@@ -505,17 +493,25 @@ if st.session_state.show_help:
         """)
         st.markdown("---")
 
-# 當點擊回測時，計算並把結果存入 st.session_state
 if run_backtest:
     active_eval_pool = st.session_state.get("final_exec_pool", [])
     if not active_eval_pool:
         st.error("請至少選擇或輸入一檔符合資格的股票或 ETF！")
     else:
         with st.spinner(f"正在向 Yahoo Finance 同步 {market_choice} 數據並執行機器學習回測中，請稍候..."):
+            # 建立帶有瀏覽器 User-Agent 的 Session，防止雲端 IP 被 Yahoo 封鎖
+            session = Session()
+            session.headers.update({
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            })
+
             stock_fundamentals = {}
+            default_fallback_tickers = []
+
             for ticker in active_eval_pool:
                 try:
-                    info = yf.Ticker(ticker).info
+                    tk = yf.Ticker(ticker, session=session)
+                    info = tk.info
                     pe = info.get("trailingPE", 20.0)
                     if pe is None or pe <= 0:
                         pe = 20.0
@@ -528,8 +524,14 @@ if run_backtest:
                         mcap = 1e11
                     size_metric = np.log(mcap)
                     stock_fundamentals[ticker] = {"Value": val_metric, "Quality": margin, "Size": size_metric}
-                except:
+                except Exception as e:
+                    # 抓取失敗時記錄並使用預設值替代
+                    default_fallback_tickers.append(ticker)
                     stock_fundamentals[ticker] = {"Value": 0.05, "Quality": 0.15, "Size": 25.0}
+
+            # 如果有標的觸發預設值，跳出警告通知
+            if default_fallback_tickers:
+                st.warning(f"⚠️ 注意：以下標的無法順利取得完整基本面數據（如 ETF 無本益比，或雲端連線受限），已自動以預設值 (Value=5) 替代：{', '.join(default_fallback_tickers)}")
 
             fetch_start_date = pd.to_datetime(target_start_date) - pd.DateOffset(months=(12 + train_window))
             fetch_end_date = pd.to_datetime(target_end_date) + pd.Timedelta(days=5)
@@ -684,7 +686,6 @@ if run_backtest:
                     latest_results.loc[latest_results["排名"] <= n_top, "訊號"] = "🔥 LONG (買進)"
                     latest_results.loc[latest_results["排名"] > (n_stocks - n_top), "訊號"] = "❄️ SHORT (放空)"
 
-                    # 💾 將所有結果存入 st.session_state 永久保存
                     st.session_state.backtest_executed = True
                     st.session_state.next_month_str = next_month_str
                     st.session_state.latest_results = latest_results
@@ -694,9 +695,6 @@ if run_backtest:
                     st.session_state.n_top = n_top
                     st.session_state.n_stocks = n_stocks
 
-# -------------------------------------------------------------
-# 渲染呈現區塊（只要 st.session_state.backtest_executed 為 True 就會一直顯示）
-# -------------------------------------------------------------
 if st.session_state.backtest_executed:
     next_month_str = st.session_state.next_month_str
     latest_results = st.session_state.latest_results
