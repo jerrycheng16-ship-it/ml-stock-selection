@@ -63,6 +63,17 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# -------------------------------------------------------------
+# 🌐 網頁瀏覽人數計數器
+# -------------------------------------------------------------
+if "page_views" not in st.session_state:
+    st.session_state.page_views = 1
+else:
+    if "counted" not in st.session_state:
+        st.session_state.page_views += 1
+        st.session_state.counted = True
+
+# 初始化 Session State 儲存回測狀態
 if "backtest_executed" not in st.session_state:
     st.session_state.backtest_executed = False
 
@@ -269,7 +280,7 @@ if "last_market_key" not in st.session_state or st.session_state.last_market_key
     st.session_state.my_multiselect = default_selected
     st.session_state.manual_added_stocks = [default_manual]
     st.session_state.excluded_stocks = []
-    st.session_state.backtest_executed = False
+    st.session_state.backtest_executed = False  # 切換市場時重置回測狀態
 
 if "selected_stocks_state" not in st.session_state:
     st.session_state.selected_stocks_state = default_selected
@@ -471,6 +482,8 @@ else:
     st.sidebar.warning("目前觀察池為空")
 
 st.sidebar.markdown("---")
+st.sidebar.caption(f"👀 總瀏覽人次：{st.session_state.page_views:,} | 系統版本：v1.3")
+st.sidebar.markdown("---")
 
 col_btn1, col_btn2 = st.columns([3, 1])
 with col_btn1:
@@ -492,6 +505,7 @@ if st.session_state.show_help:
         """)
         st.markdown("---")
 
+# 當點擊回測時，計算並把結果存入 st.session_state
 if run_backtest:
     active_eval_pool = st.session_state.get("final_exec_pool", [])
     if not active_eval_pool:
@@ -670,6 +684,7 @@ if run_backtest:
                     latest_results.loc[latest_results["排名"] <= n_top, "訊號"] = "🔥 LONG (買進)"
                     latest_results.loc[latest_results["排名"] > (n_stocks - n_top), "訊號"] = "❄️ SHORT (放空)"
 
+                    # 💾 將所有結果存入 st.session_state 永久保存
                     st.session_state.backtest_executed = True
                     st.session_state.next_month_str = next_month_str
                     st.session_state.latest_results = latest_results
@@ -679,6 +694,9 @@ if run_backtest:
                     st.session_state.n_top = n_top
                     st.session_state.n_stocks = n_stocks
 
+# -------------------------------------------------------------
+# 渲染呈現區塊（只要 st.session_state.backtest_executed 為 True 就會一直顯示）
+# -------------------------------------------------------------
 if st.session_state.backtest_executed:
     next_month_str = st.session_state.next_month_str
     latest_results = st.session_state.latest_results
