@@ -502,28 +502,20 @@ if run_backtest:
             for ticker in active_eval_pool:
                 try:
                     info = yf.Ticker(ticker).info
-                    if market_key == "ETF":
-                        div_yield = info.get("dividendYield", 0.02)
-                        if div_yield is None or div_yield <= 0:
-                            div_yield = 0.02
-                        val_metric = div_yield * 100
-                        aum = info.get("totalAssets", info.get("marketCap", 1e10))
-                        if aum is None or aum <= 0:
-                            aum = 1e10
-                        size_metric = np.log(aum)
-                        stock_fundamentals[ticker] = {"Value": val_metric, "Size": size_metric}
-                    else:
-                        pe = info.get("trailingPE", 20.0)
-                        if pe is None or pe <= 0:
-                            pe = 20.0
-                        val_metric = (1.0 / pe) * 100
-                        mcap = info.get("marketCap", 1e11)
-                        if mcap is None:
-                            mcap = 1e11
-                        size_metric = np.log(mcap)
-                        stock_fundamentals[ticker] = {"Value": val_metric, "Quality": info.get("profitMargins", 0.15) * 100, "Size": size_metric}
+                    pe = info.get("trailingPE", 20.0)
+                    if pe is None or pe <= 0:
+                        pe = 20.0
+                    val_metric = 1.0 / pe
+                    margin = info.get("profitMargins", 0.15)
+                    if margin is None:
+                        margin = 0.15
+                    mcap = info.get("marketCap", 1e11)
+                    if mcap is None:
+                        mcap = 1e11
+                    size_metric = np.log(mcap)
+                    stock_fundamentals[ticker] = {"Value": val_metric, "Quality": margin, "Size": size_metric}
                 except:
-                    stock_fundamentals[ticker] = {"Value": 5.0, "Quality": 15.0, "Size": 25.0}
+                    stock_fundamentals[ticker] = {"Value": 0.05, "Quality": 0.15, "Size": 25.0}
 
             fetch_start_date = pd.to_datetime(target_start_date) - pd.DateOffset(months=(12 + train_window))
             fetch_end_date = pd.to_datetime(target_end_date) + pd.Timedelta(days=5)
@@ -547,10 +539,6 @@ if run_backtest:
             df_daily_ret = stock_prices.pct_change()
             df_vol_monthly = (df_daily_ret.rolling(252).std() * np.sqrt(252)).resample("ME").last()
 
-            df_annual_ret = df_daily_ret.rolling(252).mean() * 252
-            df_annual_vol = df_daily_ret.rolling(252).std() * np.sqrt(252)
-            df_sharpe = (df_annual_ret / df_annual_vol.replace(0, np.nan)).resample("ME").last()
-
             dataset = []
             valid_dates = df_monthly.index[12:-1]
 
@@ -562,23 +550,16 @@ if run_backtest:
                     mom_val = df_mom.loc[date, ticker] if date in df_mom.index else np.nan
                     vol_val = df_vol_monthly.loc[date, ticker] if date in df_vol_monthly.index else np.nan
                     next_ret_val = df_next_ret.loc[date, ticker] if date in df_next_ret.index else np.nan
-                    sharpe_val = df_sharpe.loc[date, ticker] if (market_key == "ETF" and date in df_sharpe.index) else np.nan
 
                     if pd.isna(mom_val) or pd.isna(vol_val) or pd.isna(next_ret_val):
                         continue
 
-                    fund = stock_fundamentals.get(ticker, {"Value": 5.0, "Quality": 15.0, "Size": 25.0})
-
-                    if market_key == "ETF":
-                        quality_val = (sharpe_val if not pd.isna(sharpe_val) else 1.0) * 100
-                    else:
-                        quality_val = fund.get("Quality", 15.0)
-
+                    fund = stock_fundamentals.get(ticker, {"Value": 0.05, "Quality": 0.15, "Size": 25.0})
                     dataset.append({
                         "Date": date_str, "Stock": ticker,
-                        "Value": round(fund["Value"], 2),
+                        "Value": round(fund["Value"] * 100, 2),
                         "Momentum": round(mom_val * 100, 2), 
-                        "Quality": round(quality_val, 2), 
+                        "Quality": round(fund["Quality"] * 100, 2), 
                         "LowVol": round(vol_val * 100, 2), 
                         "Size": round(fund["Size"], 2),
                         "Next_Return": next_ret_val * 100
