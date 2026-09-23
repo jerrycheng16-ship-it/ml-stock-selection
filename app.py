@@ -222,7 +222,7 @@ US_STOCK_MAP = {
 US_KEYS = list(US_STOCK_MAP.keys())
 
 # -------------------------------------------------------------
-# 3. 跨資產 ETF 配置字典 (含 BNO)
+# 3. 跨資產 ETF 配置字典 (已移除 BNO)
 # -------------------------------------------------------------
 ETF_STOCK_MAP = {
     "SPY": "S&P 500 ETF", "QQQ": "Nasdaq 100 ETF", "TLT": "20+年期美國公債 ETF",
@@ -231,7 +231,7 @@ ETF_STOCK_MAP = {
     "EWY": "MSCI 韓國 ETF", "HYG": "美國高收益債 ETF", "EMB": "新興市場美元債 ETF",
     "NDIA": "印度概念 ETF", "ASHR": "中國滬深 300 ETF", "AAXJ": "亞洲除日本 ETF",
     "EEM": "MSCI 新興市場 ETF", "SLV": "白銀信託 ETF", "EWZ": "MSCI 巴西 ETF",
-    "IEF": "7-10年期美國公債 ETF", "BNO": "布蘭特原油信託 ETF"
+    "IEF": "7-10年期美國公債 ETF"
 }
 ETF_KEYS = list(ETF_STOCK_MAP.keys())
 
@@ -357,13 +357,13 @@ else:
         st.session_state.my_multiselect = KEYS_POOL[:15]
         st.session_state.excluded_stocks = []
         st.rerun()
-    if c3.button("全部列出 (20檔)"):
+    if c3.button("全部列出 (19檔)"):
         st.session_state.selected_stocks_state = KEYS_POOL
         st.session_state.my_multiselect = KEYS_POOL
         st.session_state.excluded_stocks = []
         st.rerun()
     if c4.button("核心資產組合"):
-        core_etfs = ["SPY", "QQQ", "TLT", "GLD", "IWM", "VNQ", "IEF", "HYG", "BNO"]
+        core_etfs = ["SPY", "QQQ", "TLT", "GLD", "IWM", "VNQ", "IEF", "HYG"]
         st.session_state.selected_stocks_state = core_etfs
         st.session_state.my_multiselect = core_etfs
         st.session_state.excluded_stocks = []
@@ -499,7 +499,6 @@ if run_backtest:
         st.error("請至少選擇或輸入一檔符合資格的股票或 ETF！")
     else:
         with st.spinner(f"正在向 Yahoo Finance 同步 {market_choice} 數據並執行機器學習回測中，請稍候..."):
-            # 建立帶有瀏覽器 User-Agent 的 Session，防止雲端 IP 被 Yahoo 封鎖
             session = Session()
             session.headers.update({
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -525,11 +524,9 @@ if run_backtest:
                     size_metric = np.log(mcap)
                     stock_fundamentals[ticker] = {"Value": val_metric, "Quality": margin, "Size": size_metric}
                 except Exception as e:
-                    # 抓取失敗時記錄並使用預設值替代
                     default_fallback_tickers.append(ticker)
                     stock_fundamentals[ticker] = {"Value": 0.05, "Quality": 0.15, "Size": 25.0}
 
-            # 如果有標的觸發預設值，跳出警告通知
             if default_fallback_tickers:
                 st.warning(f"⚠️ 注意：以下標的無法順利取得完整基本面數據（如 ETF 無本益比，或雲端連線受限），已自動以預設值 (Value=5) 替代：{', '.join(default_fallback_tickers)}")
 
