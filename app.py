@@ -16,7 +16,6 @@ st.markdown(
         max-height: 200px !important;
         overflow-y: auto !important;
     }
-    /* 1. 讓主回測按鈕變得非常顯眼寬大 */
     div[data-testid="column"]:nth-of-type(1) div.stButton > button {
         background-color: #ff4b4b !important;
         color: white !important;
@@ -30,8 +29,6 @@ st.markdown(
     div[data-testid="column"]:nth-of-type(1) div.stButton > button:hover {
         background-color: #ff2b2b !important;
     }
-
-    /* 2. 設定右側「說明」按鈕為低調、沉穩的灰色系 */
     div[data-testid="column"]:nth-of-type(2) div.stButton > button {
         background-color: #2b2b2b !important;
         color: #d1d1d1 !important;
@@ -47,8 +44,6 @@ st.markdown(
         color: #ffffff !important;
         border-color: #666666 !important;
     }
-
-    /* 3. 針對側邊欄「移除」按鈕進行精準縮小與低調化處理 */
     section[data-testid="stSidebar"] div.stButton > button {
         background-color: #2b2b2b !important;
         color: #d1d1d1 !important;
@@ -68,22 +63,15 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# -------------------------------------------------------------
-# 🌐 網頁瀏覽人數計數器 (真實從 1 開始計算)
-# -------------------------------------------------------------
-if "page_views" not in st.session_state:
-    st.session_state.page_views = 1
-else:
-    if "counted" not in st.session_state:
-        st.session_state.page_views += 1
-        st.session_state.counted = True
+if "backtest_executed" not in st.session_state:
+    st.session_state.backtest_executed = False
 
 # 🛠️ 主標題與功能描述
 st.title("多因子機器學習選股與回測儀表板")
 st.markdown("### 【功能說明】結合多因子量化模型（價值、動態、品質、低波動、規模）與機器學習演算法的智慧選股、動態多空對沖回測與績效分析系統。")
 
 # -------------------------------------------------------------
-# 1. 0050 完整 50 檔成分股字典（依市值權重由大到小排序）
+# 1. 0050 完整 50 檔成分股字典
 # -------------------------------------------------------------
 TW_STOCK_MAP = {
     "2330.TW": "台積電", "2454.TW": "聯發科", "2308.TW": "台達電", "2317.TW": "鴻海",
@@ -103,7 +91,7 @@ TW_STOCK_MAP = {
 TW_KEYS = list(TW_STOCK_MAP.keys())
 
 # -------------------------------------------------------------
-# 2. 已依美股市值由大到小精準排序的完整 S&P 500 字典
+# 2. S&P 500 完整字典
 # -------------------------------------------------------------
 US_STOCK_MAP = {
     "AAPL": "Apple", "MSFT": "Microsoft", "NVDA": "NVIDIA", "AMZN": "Amazon",
@@ -233,11 +221,25 @@ US_STOCK_MAP = {
 US_KEYS = list(US_STOCK_MAP.keys())
 
 # -------------------------------------------------------------
+# 3. 跨資產 ETF 配置字典
+# -------------------------------------------------------------
+ETF_STOCK_MAP = {
+    "SPY": "S&P 500 ETF", "QQQ": "Nasdaq 100 ETF", "TLT": "20+年期美國公債 ETF",
+    "GLD": "黃金信託 ETF", "IWM": "羅素 2000 小型股 ETF", "VNQ": "美國房地產 ETF",
+    "SMH": "半導體產業 ETF", "VGK": "歐洲 FTSE ETF", "EWT": "MSCI 台灣 ETF",
+    "EWY": "MSCI 韓國 ETF", "HYG": "美國高收益債 ETF", "EMB": "新興市場美元債 ETF",
+    "NDIA": "印度概念 ETF", "ASHR": "中國滬深 300 ETF", "AAXJ": "亞洲除日本 ETF",
+    "EEM": "MSCI 新興市場 ETF", "SLV": "白銀信託 ETF", "EWZ": "MSCI 巴西 ETF",
+    "IEF": "7-10年期美國公債 ETF"
+}
+ETF_KEYS = list(ETF_STOCK_MAP.keys())
+
+# -------------------------------------------------------------
 # 側邊欄設定
 # -------------------------------------------------------------
 st.sidebar.header("參數與市場設定")
 
-market_choice = st.sidebar.selectbox("選擇交易市場", ["🇹🇼 台灣股市 (台股)", "🇺🇸 美國股市 (美股)"], key="market_choice_box")
+market_choice = st.sidebar.selectbox("選擇交易市場", ["🇹🇼 台灣股市 (台股)", "🇺🇸 美國股市 (美股)", "🌐 跨資產 ETF 配置"], key="market_choice_box")
 
 if "🇹🇼" in market_choice:
     market_key = "TW"
@@ -246,21 +248,28 @@ if "🇹🇼" in market_choice:
     benchmark_name = "台灣加權指數 (TWII)"
     default_selected = TW_KEYS[:20]
     default_manual = "2330.TW"
-else:
+elif "🇺🇸" in market_choice:
     market_key = "US"
     ALL_STOCK_MAP = US_STOCK_MAP
     benchmark_ticker = "^GSPC"
     benchmark_name = "標普 500 指數 (S&P 500)"
     default_selected = US_KEYS[:20]
     default_manual = "TSM"
+else:
+    market_key = "ETF"
+    ALL_STOCK_MAP = ETF_STOCK_MAP
+    benchmark_ticker = "SPY"
+    benchmark_name = "S&P 500 ETF (SPY)"
+    default_selected = ETF_KEYS[:10]
+    default_manual = "TLT"
 
-# 市場切換或初始化偵測
 if "last_market_key" not in st.session_state or st.session_state.last_market_key != market_key:
     st.session_state.last_market_key = market_key
     st.session_state.selected_stocks_state = default_selected
     st.session_state.my_multiselect = default_selected
     st.session_state.manual_added_stocks = [default_manual]
     st.session_state.excluded_stocks = []
+    st.session_state.backtest_executed = False
 
 if "selected_stocks_state" not in st.session_state:
     st.session_state.selected_stocks_state = default_selected
@@ -278,12 +287,10 @@ target_end_date = st.sidebar.date_input("回測結束日期", pd.to_datetime("20
 st.sidebar.markdown("---")
 st.sidebar.subheader("觀察股票池設定")
 
-# ⚡ 快速組合按鈕（依市場自動適配 TW 或 US）
 if market_key == "TW":
     st.sidebar.markdown("##### ⚡ 0050 內建快速組合 (依市值排序)")
     c1, c2 = st.sidebar.columns(2)
     c3, c4 = st.sidebar.columns(2)
-
     KEYS_POOL = TW_KEYS
     if c1.button("Top 20"):
         st.session_state.selected_stocks_state = KEYS_POOL[:20]
@@ -307,11 +314,10 @@ if market_key == "TW":
         st.session_state.excluded_stocks = []
         st.rerun()
     st.sidebar.markdown("---")
-else:
+elif market_key == "US":
     st.sidebar.markdown("##### ⚡ S&P 500 內建快速組合 (依市值排序)")
     c1, c2 = st.sidebar.columns(2)
     c3, c4 = st.sidebar.columns(2)
-
     KEYS_POOL = US_KEYS
     if c1.button("Top 20"):
         st.session_state.selected_stocks_state = KEYS_POOL[:20]
@@ -335,14 +341,40 @@ else:
         st.session_state.excluded_stocks = []
         st.rerun()
     st.sidebar.markdown("---")
-
-# 1. 成分股選單
-if market_key == "TW":
-    st.sidebar.markdown("##### 📌 (1) 0050 依市值排序完整成分股")
-    pool_label = "從 0050 名單勾選或搜尋"
 else:
-    st.sidebar.markdown(f"##### 📌 (1) S&P 500 依市值排序完整成分股")
+    st.sidebar.markdown("##### ⚡ 跨資產 ETF 快速組合")
+    c1, c2 = st.sidebar.columns(2)
+    c3, c4 = st.sidebar.columns(2)
+    KEYS_POOL = ETF_KEYS
+    if c1.button("Top 10"):
+        st.session_state.selected_stocks_state = KEYS_POOL[:10]
+        st.session_state.my_multiselect = KEYS_POOL[:10]
+        st.session_state.excluded_stocks = []
+        st.rerun()
+    if c2.button("Top 15"):
+        st.session_state.selected_stocks_state = KEYS_POOL[:15]
+        st.session_state.my_multiselect = KEYS_POOL[:15]
+        st.session_state.excluded_stocks = []
+        st.rerun()
+    if c3.button("全部列出 (19檔)"):
+        st.session_state.selected_stocks_state = KEYS_POOL
+        st.session_state.my_multiselect = KEYS_POOL
+        st.session_state.excluded_stocks = []
+        st.rerun()
+    if c4.button("核心資產組合"):
+        core_etfs = ["SPY", "QQQ", "TLT", "GLD", "IWM", "VNQ", "IEF", "HYG"]
+        st.session_state.selected_stocks_state = core_etfs
+        st.session_state.my_multiselect = core_etfs
+        st.session_state.excluded_stocks = []
+        st.rerun()
+    st.sidebar.markdown("---")
+
+if market_key == "TW":
+    pool_label = "從 0050 名單勾選或搜尋"
+elif market_key == "US":
     pool_label = "從 S&P 500 名單勾選或搜尋"
+else:
+    pool_label = "從跨資產 ETF 名單勾選或搜尋"
 
 valid_defaults = [s for s in st.session_state.selected_stocks_state if s in ALL_STOCK_MAP]
 if not valid_defaults:
@@ -362,12 +394,10 @@ selected_pool = st.sidebar.multiselect(
 
 st.session_state.selected_stocks_state = selected_pool
 
-# 限制最多選取 50 檔
 if len(st.session_state.selected_stocks_state) > 50:
     st.sidebar.warning("⚠️ 觀察池上限為 50 檔，已自動幫您截取前 50 檔以優化運算效能。")
     st.session_state.selected_stocks_state = st.session_state.selected_stocks_state[:50]
 
-# 2. 手動輸入其他標的區
 st.sidebar.markdown("##### 📌 (2) 手動輸入其他標的")
 st.sidebar.caption("輸入其他代號（用逗號分隔）：")
 manual_input = st.sidebar.text_input("輸入代號", "")
@@ -396,7 +426,6 @@ if user_manual_list:
         except:
             st.sidebar.error(f"❌ {ticker}：無法取得有效歷史資料")
 
-# 3. 最終觀察池計算與 50 檔上限限制
 combined_pool = []
 for ticker in st.session_state.selected_stocks_state + st.session_state.manual_added_stocks:
     if ticker not in combined_pool:
@@ -420,6 +449,7 @@ if col_cl2.button("清除全部"):
     st.session_state.manual_added_stocks = []
     st.session_state.selected_stocks_state = []
     st.session_state.my_multiselect = []
+    st.session_state.backtest_executed = False
     st.rerun()
 
 if final_stock_pool:
@@ -435,22 +465,16 @@ if final_stock_pool:
                 st.session_state.my_multiselect.remove(ticker)
             if ticker not in st.session_state.excluded_stocks:
                 st.session_state.excluded_stocks.append(ticker)
+            st.session_state.backtest_executed = False
             st.rerun()
 else:
     st.sidebar.warning("目前觀察池為空")
 
-# 🌐 瀏覽人次移動至側邊欄最下方低調呈現
-st.sidebar.markdown("---")
-st.sidebar.caption(f"👀 總瀏覽人次：{st.session_state.page_views:,} | 系統版本：v1.2")
-
 st.sidebar.markdown("---")
 
-# 🚀 回測按鈕與使用說明按鈕「左右並排」
 col_btn1, col_btn2 = st.columns([3, 1])
-
 with col_btn1:
     run_backtest = st.button("🚀 開始執行回測與機器學習運算")
-
 with col_btn2:
     show_guide = st.button("📖 說明")
 
@@ -464,45 +488,42 @@ if st.session_state.show_help:
     with st.container():
         st.markdown(f"""
         ### 📖 網站操作說明與使用指南 ({market_choice})
-        本系統旨在協助您透過量化多因子與機器學習來進行智慧選股與歷史回測。操作步驟如下：
-
-        1. **參數設定**：
-           - **選擇交易市場**：可在側邊欄切換 **台股 (0050)** 或 **美股 (S&P 500)**。
-           - **快速組合**：點擊「Top 20」、「Top 30」、「Top 50」或抽樣按鈕可瞬間載入依市值排序的頂級標的（系統自動限制最大 50 檔）。
-           - **訓練月數 (Train Window)** 與 **回測日期區間**。
-
-        2. **觀察股票池管理**：
-           - 可從下拉選單搜尋任意標的，系統會自動將觀察池大小限制在 **50 檔以內** 以確保運算流暢。
-
-        3. **執行回測與查看結果**：
-           - 點擊 **「🚀 開始執行回測與機器學習運算」**，即可檢視最新排名信號、績效摘要、累積淨值曲線與明細數據。
+        本系統旨在協助您透過量化多因子與機器學習來進行智慧選股與歷史回測。
         """)
         st.markdown("---")
 
 if run_backtest:
     active_eval_pool = st.session_state.get("final_exec_pool", [])
     if not active_eval_pool:
-        st.error("請至少選擇或輸入一檔符合資格的股票！")
+        st.error("請至少選擇或輸入一檔符合資格的股票或 ETF！")
     else:
         with st.spinner(f"正在向 Yahoo Finance 同步 {market_choice} 數據並執行機器學習回測中，請稍候..."):
             stock_fundamentals = {}
             for ticker in active_eval_pool:
                 try:
                     info = yf.Ticker(ticker).info
-                    pe = info.get("trailingPE", 20.0)
-                    if pe is None or pe <= 0:
-                        pe = 20.0
-                    val_metric = 1.0 / pe
-                    margin = info.get("profitMargins", 0.15)
-                    if margin is None:
-                        margin = 0.15
-                    mcap = info.get("marketCap", 1e11)
-                    if mcap is None:
-                        mcap = 1e11
-                    size_metric = np.log(mcap)
-                    stock_fundamentals[ticker] = {"Value": val_metric, "Quality": margin, "Size": size_metric}
+                    if market_key == "ETF":
+                        div_yield = info.get("dividendYield", 0.02)
+                        if div_yield is None or div_yield <= 0:
+                            div_yield = 0.02
+                        val_metric = div_yield * 100
+                        aum = info.get("totalAssets", info.get("marketCap", 1e10))
+                        if aum is None or aum <= 0:
+                            aum = 1e10
+                        size_metric = np.log(aum)
+                        stock_fundamentals[ticker] = {"Value": val_metric, "Size": size_metric}
+                    else:
+                        pe = info.get("trailingPE", 20.0)
+                        if pe is None or pe <= 0:
+                            pe = 20.0
+                        val_metric = (1.0 / pe) * 100
+                        mcap = info.get("marketCap", 1e11)
+                        if mcap is None:
+                            mcap = 1e11
+                        size_metric = np.log(mcap)
+                        stock_fundamentals[ticker] = {"Value": val_metric, "Quality": info.get("profitMargins", 0.15) * 100, "Size": size_metric}
                 except:
-                    stock_fundamentals[ticker] = {"Value": 0.05, "Quality": 0.15, "Size": 25.0}
+                    stock_fundamentals[ticker] = {"Value": 5.0, "Quality": 15.0, "Size": 25.0}
 
             fetch_start_date = pd.to_datetime(target_start_date) - pd.DateOffset(months=(12 + train_window))
             fetch_end_date = pd.to_datetime(target_end_date) + pd.Timedelta(days=5)
@@ -526,6 +547,10 @@ if run_backtest:
             df_daily_ret = stock_prices.pct_change()
             df_vol_monthly = (df_daily_ret.rolling(252).std() * np.sqrt(252)).resample("ME").last()
 
+            df_annual_ret = df_daily_ret.rolling(252).mean() * 252
+            df_annual_vol = df_daily_ret.rolling(252).std() * np.sqrt(252)
+            df_sharpe = (df_annual_ret / df_annual_vol.replace(0, np.nan)).resample("ME").last()
+
             dataset = []
             valid_dates = df_monthly.index[12:-1]
 
@@ -537,16 +562,23 @@ if run_backtest:
                     mom_val = df_mom.loc[date, ticker] if date in df_mom.index else np.nan
                     vol_val = df_vol_monthly.loc[date, ticker] if date in df_vol_monthly.index else np.nan
                     next_ret_val = df_next_ret.loc[date, ticker] if date in df_next_ret.index else np.nan
+                    sharpe_val = df_sharpe.loc[date, ticker] if (market_key == "ETF" and date in df_sharpe.index) else np.nan
 
                     if pd.isna(mom_val) or pd.isna(vol_val) or pd.isna(next_ret_val):
                         continue
 
-                    fund = stock_fundamentals.get(ticker, {"Value": 0.05, "Quality": 0.15, "Size": 25.0})
+                    fund = stock_fundamentals.get(ticker, {"Value": 5.0, "Quality": 15.0, "Size": 25.0})
+
+                    if market_key == "ETF":
+                        quality_val = (sharpe_val if not pd.isna(sharpe_val) else 1.0) * 100
+                    else:
+                        quality_val = fund.get("Quality", 15.0)
+
                     dataset.append({
                         "Date": date_str, "Stock": ticker,
-                        "Value": round(fund["Value"] * 100, 2),
+                        "Value": round(fund["Value"], 2),
                         "Momentum": round(mom_val * 100, 2), 
-                        "Quality": round(fund["Quality"] * 100, 2), 
+                        "Quality": round(quality_val, 2), 
                         "LowVol": round(vol_val * 100, 2), 
                         "Size": round(fund["Size"], 2),
                         "Next_Return": next_ret_val * 100
@@ -638,7 +670,6 @@ if run_backtest:
                         {"指標": "Long-Short (多空對沖) 勝率", "數值": f"{win_rate:.2f}%", "Max Drawdown": "-"}
                     ])
 
-                    # 1. 最新排名與信號（置頂優先）
                     latest_date = dates[-1]
                     next_month_str = (latest_date + pd.DateOffset(months=1)).strftime("%Y-%m")
                     train_dates = dates[-1 - train_window : -1]
@@ -658,44 +689,57 @@ if run_backtest:
                     latest_results.loc[latest_results["排名"] <= n_top, "訊號"] = "🔥 LONG (買進)"
                     latest_results.loc[latest_results["排名"] > (n_stocks - n_top), "訊號"] = "❄️ SHORT (放空)"
 
-                    st.subheader(f"🏆 【{next_month_str} 最新排名與信號】({market_choice})")
+                    st.session_state.backtest_executed = True
+                    st.session_state.next_month_str = next_month_str
+                    st.session_state.latest_results = latest_results
+                    st.session_state.summary_df = summary_df
+                    st.session_state.df_backtest = df_backtest
+                    st.session_state.raw_data_df = raw_data_df
+                    st.session_state.n_top = n_top
+                    st.session_state.n_stocks = n_stocks
 
-                    display_latest_results = latest_results.sort_values("排名")[["排名", "股票代碼", "股票名稱", "訊號", "預測Alpha"]].copy()
-                    display_latest_results["股票代碼"] = display_latest_results["股票代碼"].apply(
-                        lambda s: f"[{s}](https://finance.yahoo.com/quote/{s}/chart?range=1y&interval=1d)"
-                    )
-                    st.markdown(display_latest_results.to_markdown(index=False), unsafe_allow_html=True)
+if st.session_state.backtest_executed:
+    next_month_str = st.session_state.next_month_str
+    latest_results = st.session_state.latest_results
+    summary_df = st.session_state.summary_df
+    df_backtest = st.session_state.df_backtest
+    raw_data_df = st.session_state.raw_data_df
+    n_top = st.session_state.n_top
+    n_stocks = st.session_state.n_stocks
 
-                    # 2. 歷史回測績效與 Max Drawdown 摘要
-                    st.markdown("---")
-                    st.subheader("📊 【歷史回測績效與 Max Drawdown 摘要】")
-                    st.table(summary_df)
+    st.subheader(f"🏆 【{next_month_str} 最新排名與信號】({market_choice})")
+    display_latest_results = latest_results.sort_values("排名")[["排名", "股票代碼", "股票名稱", "訊號", "預測Alpha"]].copy()
+    display_latest_results["股票代碼"] = display_latest_results["股票代碼"].apply(
+        lambda s: f"[{s}](https://finance.yahoo.com/quote/{s}/chart?range=1y&interval=1d)"
+    )
+    st.markdown(display_latest_results.to_markdown(index=False), unsafe_allow_html=True)
 
-                    # 3. 累積淨值走勢圖 (Nav)
-                    st.markdown("---")
-                    st.subheader("📈 【累積淨值走勢圖 (Nav)】")
-                    chart_data = df_backtest[["Long_Nav", "Short_Nav", "Benchmark_Nav"]]
-                    chart_data.columns = ["Long 組合", "Short 組合", benchmark_name]
-                    st.line_chart(chart_data)
+    st.markdown("---")
+    st.subheader("📊 【歷史回測績效與 Max Drawdown 摘要】")
+    st.table(summary_df)
 
-                    # 4. 每月對沖報酬與明細資料
-                    st.markdown("---")
-                    with st.expander("📅 【點擊展開：每月對沖報酬與明細資料】"):
-                        display_df = df_backtest.reset_index()
-                        display_df["Date"] = display_df["Date"].dt.strftime("%Y-%m-%d")
-                        for col in ["Long_Return", "Short_Return", "LongShort_Return", "Benchmark_Return"]:
-                            if col in display_df.columns:
-                                display_df[col] = display_df[col].round(2).astype(str) + "%"
-                        st.dataframe(display_df, use_container_width=True)
+    st.markdown("---")
+    st.subheader("📈 【累積淨值走勢圖 (Nav)】")
+    chart_data = df_backtest[["Long_Nav", "Short_Nav", "Benchmark_Nav"]]
+    chart_data.columns = ["Long 組合", "Short 組合", benchmark_name]
+    st.line_chart(chart_data)
 
-                    # 5. 原始因子與特徵明細資料 (Raw Data) - 🔒 安全防護
-                    st.markdown("---")
-                    with st.expander("📋 【點擊展開：原始因子與特徵明細資料 (Raw Data - 🔒 管理員專用)】"):
-                        password_input = st.text_input("請輸入管理員密碼以檢視 Raw Data", type="password", key="raw_data_pwd")
-                        if password_input == "Jerry0722":
-                            st.success("✅ 密碼正確！已解鎖原始特徵明細資料：")
-                            st.dataframe(raw_data_df, use_container_width=True)
-                        elif password_input:
-                            st.error("❌ 密碼錯誤，請重新輸入。")
-                        else:
-                            st.info("💡 提示：本區塊含有機器學習特徵與原始模型數據，需輸入正確授權密碼方可解鎖。")
+    st.markdown("---")
+    with st.expander("📅 【點擊展開：每月對沖報酬與明細資料】"):
+        display_df = df_backtest.reset_index()
+        display_df["Date"] = display_df["Date"].dt.strftime("%Y-%m-%d")
+        for col in ["Long_Return", "Short_Return", "LongShort_Return", "Benchmark_Return"]:
+            if col in display_df.columns:
+                display_df[col] = display_df[col].round(2).astype(str) + "%"
+        st.dataframe(display_df, use_container_width=True)
+
+    st.markdown("---")
+    with st.expander("📋 【點擊展開：原始因子與特徵明細資料 (Raw Data - 🔒 管理員專用)】"):
+        password_input = st.text_input("請輸入管理員密碼以檢視 Raw Data", type="password", key="raw_data_pwd")
+        if password_input == "Jerry0722":
+            st.success("✅ 密碼正確！已解鎖原始特徵明細資料：")
+            st.dataframe(raw_data_df, use_container_width=True)
+        elif password_input:
+            st.error("❌ 密碼錯誤，請重新輸入。")
+        else:
+            st.info("💡 提示：本區塊含有機器學習特徵與原始模型數據，需輸入正確授權密碼方可解鎖。")
