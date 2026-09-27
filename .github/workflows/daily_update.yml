@@ -10,7 +10,7 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 賦予 GitHub Actions 寫入與提交修改的權限
+      contents: write
 
     steps:
       - name: Checkout Repository
@@ -19,11 +19,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.11'
 
       - name: Install Dependencies
         run: |
-          pip install google-generativeai
+          python -m pip install --upgrade pip
+          pip install --force-reinstall google-genai
 
       - name: Generate Daily Report
         env:
