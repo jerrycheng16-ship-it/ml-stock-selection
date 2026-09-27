@@ -2,6 +2,7 @@ import os
 import glob
 import datetime
 from google import genai
+from google.genai import types
 
 # 1. 初始化 Gemini Client
 api_key = os.environ.get("GEMINI_API_KEY")
@@ -13,7 +14,7 @@ today_str = datetime.datetime.now().strftime("%Y-%m-%d")
 os.makedirs("posts", exist_ok=True)
 post_filename = f"posts/{today_str}.html"
 
-# 2. 設定 Prompt，確保產出無紫微/算命成分的淨化版摘要
+# 2. 設定 Prompt
 prompt = f"""
 你是一位專業的金融分析師。請為我整理今天（{today_str}）《華爾街日報》(WSJ) 的重點摘要。
 
@@ -24,13 +25,17 @@ prompt = f"""
 4. 使用繁體中文，格式請直接輸出為排版美觀的 HTML 內文（包含 <h2>, <h3>, <ul>, <li>, <strong> 等標籤）。
 """
 
+# 3. 呼叫 API (加上 config 關閉 AFC 避免報錯)
 response = client.models.generate_content(
     model='gemini-2.5-flash',
     contents=prompt,
+    config=types.GenerateContentConfig(
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
+    )
 )
 content_html = response.text
 
-# 3. 寫入當天的獨立文章頁面
+# 4. 寫入當天的獨立文章頁面
 post_html_template = f"""<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -63,9 +68,9 @@ post_html_template = f"""<!DOCTYPE html>
 with open(post_filename, "w", encoding="utf-8") as f:
     f.write(post_html_template)
 
-# 4. 掃描 posts 資料夾內的所有檔案，更新首頁 (index.html) 目錄
+# 5. 掃描 posts 資料夾內的所有檔案，更新首頁 (index.html) 目錄
 all_posts = glob.glob("posts/*.html")
-all_posts.sort(reverse=True) # 日期倒序，最新的在最上面
+all_posts.sort(reverse=True)
 
 list_items = ""
 for post_path in all_posts:
