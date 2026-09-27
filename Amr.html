@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Adaptive Macro Regimes & Multi-Factor Allocation Terminal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              bg: '#0F172A',
+              card: '#1E293B',
+              border: '#334155',
+              accent: '#38BDF8',
+              success: '#10B981',
+              warning: '#F59E0B',
+              danger: '#EF4444'
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-brand-bg text-slate-100 font-sans antialiased min-h-screen p-4 md:p-8">
+
+  <!-- Header -->
+  <header class="max-w-7xl mx-auto mb-8 border-b border-brand-border pb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div>
+      <div class="flex items-center gap-3">
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-white">Adaptive Macro Regimes</h1>
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-brand-accent/20 text-brand-accent border border-brand-accent/30">
+          Quant Terminal v2.5
+        </span>
+      </div>
+      <p class="text-sm text-slate-400 mt-1">Inspired by Jim Masturzo (Syzygy Asset Management / Research Affiliates)</p>
+    </div>
+    <div class="flex items-center gap-4">
+      <div class="text-right">
+        <div class="text-xs text-slate-400">當前模擬時間 (Current Date)</div>
+        <div class="text-sm font-mono text-brand-accent font-semibold">2026-09-28</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto space-y-8">
+
+    <!-- Top Section: Macro Input & Regime Signal Gauge -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Panel 1: Interactive Monthly Macro Inputs -->
+      <div class="bg-brand-card rounded-xl border border-brand-border p-6 space-y-5">
+        <div class="flex justify-between items-center border-b border-brand-border pb-3">
+          <h2 class="text-lg font-semibold flex items-center gap-2 text-white">
+            <svg class="w-5 h-5 text-brand-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+            當月宏觀指標輸入 (Macro Inputs)
+          </h2>
+          <button id="reset-btn" class="text-xs text-slate-400 hover:text-white underline">重置預設</button>
+        </div>
+
+        <!-- Slider 1: Growth -->
+        <div class="space-y-1.5">
+          <div class="flex justify-between text-xs">
+            <span class="text-slate-300">經濟成長動能 (Growth / Momentum)</span>
+            <span id="growth-val" class="font-mono text-brand-accent">+0.45%</span>
+          </div>
+          <input type="range" id="input-growth" min="-2.0" max="2.0" step="0.05" value="0.45" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-brand-accent">
+        </div>
+
+        <!-- Slider 2: Credit Spread -->
+        <div class="space-y-1.5">
+          <div class="flex justify-between text-xs">
+            <span class="text-slate-300">信用利差偏好 (HYG / TLT Credit)</span>
+            <span id="credit-val" class="font-mono text-brand-accent">+0.20%</span>
+          </div>
+          <input type="range" id="input-credit" min="-2.0" max="2.0" step="0.05" value="0.20" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-brand-accent">
+        </div>
+
+        <!-- Slider 3: Rates / Inflation -->
+        <div class="space-y-1.5">
+          <div class="flex justify-between text-xs">
+            <span class="text-slate-300">利率/通膨趨勢 (Rates / Inflation)</span>
+            <span id="rates-val" class="font-mono text-brand-accent">-0.10%</span>
+          </div>
+          <input type="range" id="input-rates" min="-2.0" max="2.0" step="0.05" value="-0.10" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-brand-accent">
+        </div>
+
+        <!-- Slider 4: Lookback Window -->
+        <div class="space-y-1.5 pt-2 border-t border-brand-border">
+          <div class="flex justify-between text-xs">
+            <span class="text-slate-400">適應性滾動視窗 (Adaptive Lookback)</span>
+            <span id="lookback-val" class="font-mono text-slate-300">12 個月</span>
+          </div>
+          <input type="range" id="input-lookback" min="3" max="24" step="1" value="12" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-slate-400">
+        </div>
+      </div>
+
+      <!-- Panel 2: Real-time Regime Classification & Output -->
+      <div class="bg-brand-card rounded-xl border border-brand-border p-6 flex flex-col justify-between space-y-4">
+        <div class="border-b border-brand-border pb-3">
+          <h2 class="text-lg font-semibold flex items-center gap-2 text-white">
+            <svg class="w-5 h-5 text-brand-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            體制判斷與配置建議
+          </h2>
+        </div>
+
+        <!-- Metric Display -->
+        <div class="text-center py-2 bg-slate-900/50 rounded-lg border border-slate-800">
+          <div class="text-xs text-slate-400 uppercase tracking-wider mb-1">適應性宏觀得分 (Adaptive Macro Score)</div>
+          <div id="macro-score" class="text-4xl font-extrabold font-mono text-brand-success">+0.38</div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="p-3 bg-slate-800/60 rounded-lg border border-slate-700/50 text-center">
+            <div class="text-xs text-slate-400">當前經濟體制</div>
+            <div id="regime-name" class="text-lg font-bold text-brand-success mt-0.5">擴張期 (Expansion)</div>
+          </div>
+          <div class="p-3 bg-slate-800/60 rounded-lg border border-slate-700/50 text-center">
+            <div class="text-xs text-slate-400">建議大盤股票比重</div>
+            <div id="equity-weight" class="text-lg font-bold text-white mt-0.5">100% SPY</div>
+          </div>
+        </div>
+
+        <!-- Visual Bar for Score -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs text-slate-400">
+            <span>Contraction (-1.0)</span>
+            <span>Slowdown</span>
+            <span>Recovery</span>
+            <span>Expansion (+1.0)</span>
+          </div>
+          <div class="h-2 w-full bg-slate-700 rounded-full overflow-hidden flex">
+            <div class="w-1/4 bg-brand-danger opacity-80"></div>
+            <div class="w-1/4 bg-brand-warning opacity-80"></div>
+            <div class="w-1/4 bg-blue-500 opacity-80"></div>
+            <div class="w-1/4 bg-brand-success opacity-80"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 3: Dynamic Asset Allocation Donut Chart -->
+      <div class="bg-brand-card rounded-xl border border-brand-border p-6 flex flex-col justify-between">
+        <h2 class="text-lg font-semibold border-b border-brand-border pb-3 text-white">資產配置比重 (Asset Allocation)</h2>
+        <div class="relative h-48 my-auto">
+          <canvas id="allocChart"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Bottom Section: Multi-Factor Stock Selection Simulation -->
+    <div class="bg-brand-card rounded-xl border border-brand-border p-6 space-y-6">
+      
+      <div class="flex flex-col md:flex-row justify-between md:items-center border-b border-brand-border pb-4 gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-white flex items-center gap-2">
+            <svg class="w-6 h-6 text-brand-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+            多因子選股模型模擬 (Multi-Factor Stock Selection Engine)
+          </h2>
+          <p class="text-xs text-slate-400 mt-1">根據上方判斷之宏觀體制，動態調整 Bottom-Up 選股因子權重與排名</p>
+        </div>
+
+        <div class="flex items-center gap-2 bg-slate-900/80 p-1.5 rounded-lg border border-slate-800">
+          <span class="text-xs text-slate-400 px-2">體制快選:</span>
+          <button onclick="setRegimePreset('Expansion')" class="px-2.5 py-1 text-xs rounded font-medium bg-brand-success/20 text-brand-success hover:bg-brand-success/30">擴張期</button>
+          <button onclick="setRegimePreset('Slowdown')" class="px-2.5 py-1 text-xs rounded font-medium bg-brand-warning/20 text-brand-warning hover:bg-brand-warning/30">放緩期</button>
+          <button onclick="setRegimePreset('Contraction')" class="px-2.5 py-1 text-xs rounded font-medium bg-brand-danger/20 text-brand-danger hover:bg-brand-danger/30">收縮期</button>
+          <button onclick="setRegimePreset('Recovery')" class="px-2.5 py-1 text-xs rounded font-medium bg-blue-500/20 text-blue-400 hover:bg-blue-500/30">復甦期</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Factor Weight Breakdown Chart -->
+        <div class="space-y-3">
+          <h3 class="text-sm font-semibold text-slate-300">當前體制因子權重 (Factor Weights)</h3>
+          <div class="relative h-56 bg-slate-900/40 p-4 rounded-lg border border-slate-800">
+            <canvas id="factorChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Stock Selection List -->
+        <div class="lg:col-span-2 space-y-3">
+          <div class="flex justify-between items-center">
+            <h3 class="text-sm font-semibold text-slate-300">模擬選股前 5 大標的與 Alpha 得分 (Top Factor Picks)</h3>
+            <span class="text-xs text-slate-500">股票池：S&P 500 選萃</span>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+              <thead class="bg-slate-800/80 text-slate-400 text-xs uppercase font-mono border-b border-slate-700">
+                <tr>
+                  <th class="py-2.5 px-3">排名</th>
+                  <th class="py-2.5 px-3">股票代碼</th>
+                  <th class="py-2.5 px-3">公司名稱</th>
+                  <th class="py-2.5 px-3">主力驅動因子</th>
+                  <th class="py-2.5 px-3 text-right">綜合 Alpha 得分</th>
+                </tr>
+              </thead>
+              <tbody id="stock-table-body" class="divide-y divide-slate-800 font-mono text-slate-200">
+                <!-- Dynamic Content Generated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    // --- Data Models & Regime Definitions ---
+    const REGIME_CONFIG = {
+      Expansion: {
+        minScore: 0.2,
+        name: '擴張期 (Expansion)',
+        color: '#10B981',
+        equityWeight: 100,
+        cashWeight: 0,
+        factors: { Value: 0.10, Growth: 0.30, Momentum: 0.40, Quality: 0.20, LowVol: 0.00 },
+        stocks: [
+          { ticker: 'NVDA', name: 'Nvidia Corp', driver: 'Momentum / Growth' },
+          { ticker: 'AAPL', name: 'Apple Inc', driver: 'Growth / Quality' },
+          { ticker: 'AMZN', name: 'Amazon.com Inc', driver: 'Growth / Momentum' },
+          { ticker: 'MSFT', name: 'Microsoft Corp', driver: 'Quality / Momentum' },
+          { ticker: 'META', name: 'Meta Platforms', driver: 'Momentum' }
+        ]
+      },
+      Recovery: {
+        minScore: 0.0,
+        name: '復甦期 (Recovery)',
+        color: '#3B82F6',
+        equityWeight: 70,
+        cashWeight: 30,
+        factors: { Value: 0.40, Growth: 0.30, Momentum: 0.20, Quality: 0.10, LowVol: 0.00 },
+        stocks: [
+          { ticker: 'CAT', name: 'Caterpillar Inc', driver: 'Value / Cyclical' },
+          { ticker: 'FCX', name: 'Freeport-McMoRan', driver: 'Value / Reversal' },
+          { ticker: 'DAL', name: 'Delta Air Lines', driver: 'Value' },
+          { ticker: 'AMD', name: 'Adv Micro Devices', driver: 'Growth' },
+          { ticker: 'JPM', name: 'JPMorgan Chase', driver: 'Value / Quality' }
+        ]
+      },
+      Slowdown: {
+        minScore: -0.2,
+        name: '放緩期 (Slowdown)',
+        color: '#F59E0B',
+        equityWeight: 40,
+        cashWeight: 60,
+        factors: { Value: 0.30, Growth: 0.00, Momentum: 0.15, Quality: 0.35, LowVol: 0.20 },
+        stocks: [
+          { ticker: 'BRK.B', name: 'Berkshire Hathaway', driver: 'Quality / Value' },
+          { ticker: 'JNJ', name: 'Johnson & Johnson', driver: 'Quality / LowVol' },
+          { ticker: 'PG', name: 'Procter & Gamble', driver: 'Quality' },
+          { ticker: 'UNH', name: 'UnitedHealth Group', driver: 'Quality' },
+          { ticker: 'XOM', name: 'Exxon Mobil Corp', driver: 'Value' }
+        ]
+      },
+      Contraction: {
+        minScore: -1.0,
+        name: '收縮期 (Contraction)',
+        color: '#EF4444',
+        equityWeight: 10,
+        cashWeight: 90,
+        factors: { Value: 0.20, Growth: 0.00, Momentum: 0.00, Quality: 0.35, LowVol: 0.45 },
+        stocks: [
+          { ticker: 'KO', name: 'Coca-Cola Co', driver: 'LowVol / Quality' },
+          { ticker: 'MCD', name: 'McDonald\'s Corp', driver: 'LowVol' },
+          { ticker: 'WM', name: 'Waste Management', driver: 'LowVol' },
+          { ticker: 'PEP', name: 'PepsiCo Inc', driver: 'LowVol / Quality' },
+          { ticker: 'COST', name: 'Costco Wholesale', driver: 'Quality' }
+        ]
+      }
+    };
+
+    // --- Global Chart Instances ---
+    let allocChartInstance = null;
+    let factorChartInstance = null;
+
+    // --- Initial Setup & Event Listeners ---
+    document.addEventListener('DOMContentLoaded', () => {
+      initCharts();
+      updateEngine();
+
+      ['input-growth', 'input-credit', 'input-rates', 'input-lookback'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updateEngine);
+      });
+
+      document.getElementById('reset-btn').addEventListener('click', () => {
+        document.getElementById('input-growth').value = 0.45;
+        document.getElementById('input-credit').value = 0.20;
+        document.getElementById('input-rates').value = -0.10;
+        document.getElementById('input-lookback').value = 12;
+        updateEngine();
+      });
+    });
+
+    // --- Calculation Core ---
+    function updateEngine() {
+      const g = parseFloat(document.getElementById('input-growth').value);
+      const c = parseFloat(document.getElementById('input-credit').value);
+      const r = parseFloat(document.getElementById('input-rates').value);
+      const lb = parseInt(document.getElementById('input-lookback').value);
+
+      document.getElementById('growth-val').textContent = (g >= 0 ? '+' : '') + g.toFixed(2) + '%';
+      document.getElementById('credit-val').textContent = (c >= 0 ? '+' : '') + c.toFixed(2) + '%';
+      document.getElementById('rates-val').textContent = (r >= 0 ? '+' : '') + r.toFixed(2) + '%';
+      document.getElementById('lookback-val').textContent = lb + ' 個月';
+
+      // Adaptive weight simulation based on lookback window
+      const wG = 0.50 * (12 / lb);
+      const wC = 0.30;
+      const wR = 0.20 * (lb / 12);
+      const wSum = wG + wC + wR;
+
+      const score = ((g * wG) + (c * wC) + (r * wR)) / wSum;
+      const clampedScore = Math.max(-1.0, Math.min(1.0, score));
+
+      // Determine Regime
+      let regimeKey = 'Contraction';
+      if (clampedScore > REGIME_CONFIG.Expansion.minScore) regimeKey = 'Expansion';
+      else if (clampedScore > REGIME_CONFIG.Recovery.minScore) regimeKey = 'Recovery';
+      else if (clampedScore > REGIME_CONFIG.Slowdown.minScore) regimeKey = 'Slowdown';
+
+      const currentRegime = REGIME_CONFIG[regimeKey];
+
+      // Update UI Header Stats
+      const scoreElem = document.getElementById('macro-score');
+      scoreElem.textContent = (clampedScore >= 0 ? '+' : '') + clampedScore.toFixed(2);
+      scoreElem.style.color = currentRegime.color;
+
+      const nameElem = document.getElementById('regime-name');
+      nameElem.textContent = currentRegime.name;
+      nameElem.style.color = currentRegime.color;
+
+      document.getElementById('equity-weight').textContent = currentRegime.equityWeight + '% Equity';
+
+      // Update Allocation Chart
+      updateAllocChart(currentRegime.equityWeight, currentRegime.cashWeight, currentRegime.color);
+
+      // Update Multi-Factor Section
+      updateFactorSection(currentRegime);
+    }
+
+    function setRegimePreset(regimeKey) {
+      if (regimeKey === 'Expansion') {
+        document.getElementById('input-growth').value = 0.8;
+        document.getElementById('input-credit').value = 0.5;
+        document.getElementById('input-rates').value = -0.1;
+      } else if (regimeKey === 'Slowdown') {
+        document.getElementById('input-growth').value = -0.1;
+        document.getElementById('input-credit').value = -0.3;
+        document.getElementById('input-rates').value = 0.2;
+      } else if (regimeKey === 'Contraction') {
+        document.getElementById('input-growth').value = -1.2;
+        document.getElementById('input-credit').value = -1.0;
+        document.getElementById('input-rates').value = -0.5;
+      } else if (regimeKey === 'Recovery') {
+        document.getElementById('input-growth').value = 0.1;
+        document.getElementById('input-credit').value = 0.2;
+        document.getElementById('input-rates').value = -0.2;
+      }
+      updateEngine();
+    }
+
+    // --- Charting & Table Helpers ---
+    function initCharts() {
+      const ctxAlloc = document.getElementById('allocChart').getContext('2d');
+      allocChartInstance = new Chart(ctxAlloc, {
+        type: 'doughnut',
+        data: {
+          labels: ['股票 (Equity SPY)', '現金/美債 (Cash/TLT)'],
+          datasets: [{
+            data: [100, 0],
+            backgroundColor: ['#10B981', '#334155'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { color: '#94A3B8', font: { size: 11 } } } },
+          cutout: '70%'
+        }
+      });
+
+      const ctxFactor = document.getElementById('factorChart').getContext('2d');
+      factorChartInstance = new Chart(ctxFactor, {
+        type: 'bar',
+        data: {
+          labels: ['Value 價值', 'Growth 成長', 'Momentum 動能', 'Quality 品質', 'LowVol 低波'],
+          datasets: [{
+            label: '因子權重',
+            data: [0.1, 0.3, 0.4, 0.2, 0.0],
+            backgroundColor: '#38BDF8',
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: { beginAtZero: true, max: 0.5, ticks: { color: '#94A3B8' }, grid: { color: '#334155' } },
+            x: { ticks: { color: '#94A3B8', font: { size: 10 } }, grid: { display: false } }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    function updateAllocChart(eq, cash, color) {
+      if (!allocChartInstance) return;
+      allocChartInstance.data.datasets[0].data = [eq, cash];
+      allocChartInstance.data.datasets[0].backgroundColor = [color, '#334155'];
+      allocChartInstance.update();
+    }
+
+    function updateFactorSection(regime) {
+      if (!factorChartInstance) return;
+
+      const f = regime.factors;
+      factorChartInstance.data.datasets[0].data = [f.Value, f.Growth, f.Momentum, f.Quality, f.LowVol];
+      factorChartInstance.data.datasets[0].backgroundColor = regime.color;
+      factorChartInstance.update();
+
+      // Render Stock Table
+      const tbody = document.getElementById('stock-table-body');
+      tbody.innerHTML = '';
+
+      regime.stocks.forEach((s, idx) => {
+        const score = (2.50 - idx * 0.28).toFixed(2);
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-800/50 transition-colors';
+        tr.innerHTML = `
+          <td class="py-2.5 px-3 font-bold text-slate-400">#${idx + 1}</td>
+          <td class="py-2.5 px-3 font-bold text-brand-accent">${s.ticker}</td>
+          <td class="py-2.5 px-3 text-slate-300">${s.name}</td>
+          <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-xs bg-slate-800 text-slate-300 border border-slate-700">${s.driver}</span></td>
+          <td class="py-2.5 px-3 text-right font-bold text-brand-success">+${score}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+  </script>
+</body>
+</html>
