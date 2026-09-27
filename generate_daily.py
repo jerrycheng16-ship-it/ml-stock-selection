@@ -32,12 +32,13 @@ prompt = f"""
 4. 使用繁體中文，格式請直接輸出為排版美觀的 HTML 內文（包含 <h2>, <h3>, <ul>, <li>, <strong> 等標籤）。
 """
 
-# 3. 呼叫 Gemini API（使用當前最新的 gemini-3.8-flash 模型）
-models_to_try = ['gemini-3.8-flash']
+# 3. 呼叫 Gemini API（多模型 + 拉長重試間隔）
+models_to_try = ['gemini-3.8-flash', 'gemini-2.5-flash']
 content_html = None
 
 for model_name in models_to_try:
-    for attempt in range(1, 4):  # 最多重試 3 次
+    print(f"🔄 開始嘗試模型: {model_name}")
+    for attempt in range(1, 5):  # 每個模型嘗試 4 次
         try:
             print(f"正在發送 API 請求 (模型: {model_name}, 第 {attempt} 次嘗試)...")
             response = client.models.generate_content(
@@ -51,14 +52,16 @@ for model_name in models_to_try:
             print("✅ 成功取得 API 回應！")
             break
         except Exception as e:
-            print(f"⚠️ 第 {attempt} 次請求失敗 ({e})，等待 5 秒後重試...")
-            time.sleep(5)
+            wait_time = attempt * 10  # 第一次等 10 秒，第二次等 20 秒，以此類推
+            print(f"⚠️ 失敗原因: {e}")
+            print(f"⏳ 等待 {wait_time} 秒後進行下一次重試...")
+            time.sleep(wait_time)
     
     if content_html:
         break
 
 if not content_html:
-    print("❌ API 請求多次失敗，請檢查模型設定或伺服器狀態。")
+    print("❌ API 伺服器持續繁忙，請過一段時間後再手動觸發。")
     sys.exit(1)
 
 # 4. 寫入當天的獨立文章頁面
