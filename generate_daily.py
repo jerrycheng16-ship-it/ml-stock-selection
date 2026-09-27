@@ -1,10 +1,8 @@
 import os
-import sys
 import glob
 import datetime
-
-# 強制確保能正確載入 google.genai 模組
 from google import genai
+from google.genai import types
 
 # 1. 讀取 API Key 並初始化 Client
 api_key = os.environ.get("GEMINI_API_KEY")
@@ -30,10 +28,13 @@ prompt = f"""
 4. 使用繁體中文，格式請直接輸出為排版美觀的 HTML 內文（包含 <h2>, <h3>, <ul>, <li>, <strong> 等標籤）。
 """
 
-# 3. 呼叫 Gemini 2.5 Flash 模型
+# 3. 呼叫 Gemini 2.5 Flash 模型 (明確關閉 AFC 避免死鎖)
 response = client.models.generate_content(
     model='gemini-2.5-flash',
     contents=prompt,
+    config=types.GenerateContentConfig(
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
+    )
 )
 content_html = response.text
 
