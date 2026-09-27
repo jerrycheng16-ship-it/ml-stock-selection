@@ -25,24 +25,27 @@ date_display = today_dt.strftime("%Y 年 %m 月 %d 日")
 os.makedirs("posts", exist_ok=True)
 post_filename = f"posts/{today_str}.html"
 
-# 2. 抓取當天最新金融與總經數據相關新聞 RSS
+# 2. 抓取「路透中文網」與「Yahoo 奇摩財經」即時 RSS 新聞
 rss_urls = [
-    "https://news.google.com/rss/search?q=site:wsj.com+OR+site:bloomberg.com+market+OR+Fed+OR+inflation+OR+yields&hl=en-US&gl=US&ceid=US:en",
-    "https://news.google.com/rss/search?q=Federal+Reserve+interest+rates+yield+curve+treasury+CPI+PCE&hl=en-US&gl=US&ceid=US:en",
-    "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"
+    # 路透社中文網 (透過 Google News 抓取即時中文財經焦點)
+    "https://news.google.com/rss/search?q=site:cn.reuters.com+OR+site:reuters.com+hl:zh-TW&hl=zh-TW&gl=TW&ceid=TW:zh-Hant",
+    # Yahoo 奇摩財經 (聚焦於全球總經、美股、台股與市場數據)
+    "https://news.google.com/rss/search?q=site:tw.stock.yahoo.com+OR+site:finance.yahoo.com+通膨+OR+聯準會+OR+美股+OR+美債&hl=zh-TW&gl=TW&ceid=TW:zh-Hant",
+    # 補充：Google News 繁體中文全球金融焦點
+    "https://news.google.com/rss/search?q=聯準會+OR+美債殖利率+OR+美股三大指數&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
 ]
 
 raw_news_items = []
-print(f"正在抓取 {date_display} 最新實時金融與總經新聞...")
+print(f"正在從路透中文網及 Yahoo 奇摩財經抓取 {date_display} 最新實時金融新聞...")
 
 for url in rss_urls:
     try:
         feed = feedparser.parse(url)
-        for entry in feed.entries[:10]:
+        for entry in feed.entries[:8]: # 每個 Feed 抓取前 8 條焦點
             title = entry.get('title', '')
             published = entry.get('published', '')
             summary = entry.get('summary', '')
-            raw_news_items.append(f"【新聞發布時間: {published}】\n標題: {title}\n摘要: {summary}\n")
+            raw_news_items.append(f"【發布時間: {published}】\n標題: {title}\n摘要: {summary}\n")
     except Exception as e:
         print(f"⚠️ 抓取 RSS 失敗 ({url}): {e}")
 
@@ -51,38 +54,44 @@ if not raw_news_items:
     sys.exit(1)
 
 news_context = "\n".join(raw_news_items)
-print(f"✅ 成功抓取 {len(raw_news_items)} 則當天即時新聞資料！")
+print(f"✅ 成功抓取 {len(raw_news_items)} 則路透與 Yahoo 奇摩財經當天新聞！")
 
-# 3. 構建嚴格時間與數據導向 Prompt
+# 3. 構建機構級總經與數據分析 Prompt
 prompt = f"""
 你是一位機構級固定收益與總體經濟分析師。
 
 今天確切的日期是：{date_display}。
 
-以下是今天（{date_display}）從權威財經媒體（含 WSJ、Bloomberg、Reuters 等）抓取的最新實時新聞標題與摘要：
+以下是今天從「路透社中文網 (Reuters)」與「Yahoo 奇摩財經 (Yahoo Finance)」抓取的最新即時新聞與數據：
 
-=== 今日實時金融新聞原始資料 ===
+=== 今日中文財經新聞原始資料 ===
 {news_context}
 ================================
 
-【最高寫作指令】：
-1. **嚴禁歷史回溯與舊新聞幻覺**：只能翻譯與解讀上方資料中【當天實際發生的事件】。絕對禁止補充任何未在資料中出現的歷史事件（例如：嚴禁提及過去年份的 DeepSeek 暴跌、舊美債高點等）。
-2. **數據精確呈現**：重點摘錄新聞中的關鍵量化數據，包含**指數點數與漲跌幅 %、美債殖利率與基點 bps 變化、通膨指標（CPI/PCE）及央行目標利率區間**。若原始資料缺乏特定確切數字，請僅針對新聞事件進行客觀市場影響解讀，切勿憑空捏造數字。
+【任務要求 - 路透與 Yahoo 財經數據編譯】：
+請根據上述原始新聞，將內容編譯並整理為一份專業且強調「數據與客觀事實」的《每日金融市場要聞》。
 
-【報告架構】：
-請將新聞內容分類為以下四個章節：
-一、全球金融市場焦點與數據速覽
-二、總體經濟、央行政策與債券市場
-三、科技產業與企業財務動態
-四、外匯、大宗商品與信用市場
+1. **數據導向寫作（重點）**：
+   - 將新聞中的精確數據完整保留並強調，如：**指數漲跌幅 %、美債殖利率與基點 (bps) 變化、通膨率 (CPI/PCE) %、央行利率區間及外匯/大宗商品價格**。
+   - 請將簡體中文內容（若有）統一轉換為**標準繁體中文**與台灣常用的金融用語（如：利率、殖利率、聯準會、晶片、軟體）。
 
-【格式要求】：
-- 使用繁體中文。
-- 關鍵數字與比例請以 <strong> 標籤加粗顯示。
-- 格式直接輸出為排版美觀的 HTML 內文（使用 <h2>, <h3>, <ul>, <li>, <strong> 等標籤）。
+2. **嚴格防幻覺規範**：
+   - 只能翻譯與歸納上述新聞列表中的【當天實際事件】。
+   - 絕對禁止補充任何未在資料中出現的歷史舊新聞（如：嚴禁提及過去年份的歷史暴跌或舊美債高點）。
+
+3. **報告章節結構**：
+   一、全球金融市場焦點與數據速覽
+   二、總體經濟、央行政策與債券市場
+   三、科技產業與企業財務動態
+   四、外匯、大宗商品與信用市場
+
+4. **格式要求**：
+   - 使用繁體中文。
+   - 關鍵數據與比例請以 <strong> 標籤加粗顯示。
+   - 格式直接輸出為排版美觀的 HTML 內文（使用 <h2>, <h3>, <ul>, <li>, <strong> 等標籤）。
 """
 
-# 4. 呼叫 Gemini API (不使用 google_search 工具，避免 429 超額)
+# 4. 呼叫 Gemini API (使用 gemini-3.8-flash 模型)
 models_to_try = ['gemini-3.8-flash']
 content_html = None
 
@@ -111,7 +120,7 @@ for model_name in models_to_try:
         break
 
 if not content_html:
-    print("❌ API 伺服器持續繁忙或配額不足，請稍後再試。")
+    print("❌ API 伺服器持續繁忙，請過一段時間後再手動觸發。")
     sys.exit(1)
 
 # 5. 寫入當天的獨立文章頁面
@@ -128,7 +137,7 @@ post_html_template = f"""<!DOCTYPE html>
         h2 {{ color: #2c3e50; margin-top: 25px; border-bottom: 1px solid #eee; padding-bottom: 5px; }}
         ul {{ padding-left: 20px; }}
         li {{ margin-bottom: 8px; }}
-        strong {{ color: #c0392b; }} /* 數據加粗顯色 */
+        strong {{ color: #c0392b; }} /* 數據加粗紅字強調 */
         a {{ color: #3498db; text-decoration: none; }}
         .back-link {{ display: inline-block; margin-bottom: 15px; font-weight: bold; }}
     </style>
@@ -137,7 +146,7 @@ post_html_template = f"""<!DOCTYPE html>
     <div class="container">
         <a href="../index.html" class="back-link">← 返回首頁文章目錄</a>
         <h1>每日金融市場要聞</h1>
-        <div style="color: #7f8c8d;">日期：{today_str}（即時金融數據編譯）</div>
+        <div style="color: #7f8c8d;">日期：{today_str}（路透中文網 & Yahoo 奇摩財經 即時編譯）</div>
         <hr>
         {content_html}
     </div>
@@ -155,7 +164,7 @@ all_posts.sort(reverse=True)
 list_items = ""
 for post_path in all_posts:
     date_part = os.path.basename(post_path).replace(".html", "")
-    list_items += f'<li><a href="{post_path}">【{date_part}】每日金融市場要聞與總經數據解讀</a></li>\n'
+    list_items += f'<li><a href="{post_path}">【{date_part}】每日金融市場要聞（路透 & Yahoo 財經摘要）</a></li>\n'
 
 index_html_template = f"""<!DOCTYPE html>
 <html lang="zh-TW">
@@ -176,7 +185,7 @@ index_html_template = f"""<!DOCTYPE html>
 <body>
     <div class="container">
         <h1>每日金融市場要聞</h1>
-        <p>自動追蹤全球總體經濟指標、央行利率政策、美債殖利率變動與金融市場數據。</p>
+        <p>自動彙整路透社中文網與 Yahoo 奇摩財經最新總體經濟數據、央行動態與金融市場重點。</p>
         <hr>
         <h2>歷史文章列表（點擊觀看詳細內容）</h2>
         <ul class="post-list">
