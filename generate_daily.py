@@ -1,14 +1,17 @@
 import os
+import sys
 import glob
 import datetime
 from google import genai
-from google.genai import types
 
-# 1. 讀取 API Key 並初始化 Client
+# 1. 檢查並讀取 API Key
 api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key:
-    raise ValueError("找不到 GEMINI_API_KEY 環境變數，請檢查 GitHub Secrets 設定！")
+    print("❌ 錯誤：找不到 GEMINI_API_KEY！請檢查 GitHub Settings > Secrets 是否設定正確。")
+    sys.exit(1)
 
+# 清除金鑰前後可能誤複製到的空格或換行
+api_key = api_key.strip()
 client = genai.Client(api_key=api_key)
 
 today_str = datetime.datetime.now().strftime("%Y-%m-%d")
@@ -28,15 +31,18 @@ prompt = f"""
 4. 使用繁體中文，格式請直接輸出為排版美觀的 HTML 內文（包含 <h2>, <h3>, <ul>, <li>, <strong> 等標籤）。
 """
 
-# 3. 呼叫 Gemini 2.5 Flash 模型 (明確關閉 AFC 避免死鎖)
-response = client.models.generate_content(
-    model='gemini-2.5-flash',
-    contents=prompt,
-    config=types.GenerateContentConfig(
-        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
+# 3. 呼叫 Gemini API（加上 Try-Except 捕捉精確錯誤）
+try:
+    print("正在發送 API 請求...")
+    response = client.models.generate_content(
+        model='gemini-2.0-flash',  # 使用當前標準穩定模型
+        contents=prompt,
     )
-)
-content_html = response.text
+    content_html = response.text
+    print("✅ 成功取得 API 回應！")
+except Exception as e:
+    print(f"❌ API 請求失敗！具體錯誤原因：{e}")
+    sys.exit(1)
 
 # 4. 寫入當天的獨立文章頁面
 post_html_template = f"""<!DOCTYPE html>
@@ -113,4 +119,4 @@ index_html_template = f"""<!DOCTYPE html>
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(index_html_template)
 
-print("歷史文章與首頁更新完畢。")
+print("🎉 歷史文章與首頁更新完畢！")
