@@ -31,7 +31,7 @@ prompt = f"""
 4. 使用繁體中文，格式請直接輸出為排版美觀的 HTML 內文（包含 <h2>, <h3>, <ul>, <li>, <strong> 等標籤）。
 """
 
-# 3. 呼叫 Gemini API (使用修正後的模型名稱 gemini-2.5-flash 並關閉 AFC)
+# 3. 呼叫 Gemini API (更新為官方指定的 gemini-2.5-flash 模型)
 try:
     print("正在發送 API 請求...")
     response = client.models.generate_content(
