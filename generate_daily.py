@@ -3,8 +3,6 @@ import sys
 import time
 import glob
 import datetime
-import urllib.parse
-import feedparser
 from google import genai
 from google.genai import types
 
@@ -17,79 +15,49 @@ if not api_key:
 api_key = api_key.strip()
 client = genai.Client(api_key=api_key)
 
-today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+# 取得今天日期
+today_dt = datetime.datetime.now()
+today_str = today_dt.strftime("%Y-%m-%d")
+date_display = today_dt.strftime("%Y 年 %m 月 %d 日")
 
 # 建立歷史文章資料夾 posts
 os.makedirs("posts", exist_ok=True)
 post_filename = f"posts/{today_str}.html"
 
-# 2. 抓取聚焦於「具體數據、總經指標與市場走勢」的即時新聞 RSS
-rss_urls = [
-    "https://news.google.com/rss/search?q=site:wsj.com+inflation+OR+CPI+OR+PCE+OR+yields+OR+Fed&hl=en-US&gl=US&ceid=US:en",
-    "https://news.google.com/rss/search?q=Federal+Reserve+interest+rates+yield+curve+treasury&hl=en-US&gl=US&ceid=US:en",
-    "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"
-]
-
-raw_news_items = []
-print("正在抓取全球金融市場與具體數據相關最新新聞...")
-
-for url in rss_urls:
-    try:
-        feed = feedparser.parse(url)
-        for entry in feed.entries[:10]:
-            title = entry.get('title', '')
-            published = entry.get('published', '')
-            summary = entry.get('summary', '')
-            raw_news_items.append(f"【發布時間: {published}】\n標題: {title}\n摘要: {summary}\n")
-    except Exception as e:
-        print(f"⚠️ 抓取 RSS 失敗 ({url}): {e}")
-
-if not raw_news_items:
-    print("❌ 未能成功抓取到金融新聞資料！")
-    sys.exit(1)
-
-news_context = "\n".join(raw_news_items)
-print(f"✅ 成功抓取 {len(raw_news_items)} 則新聞資料！")
-
-# 3. 構建「數據導向」的機構級金融分析 Prompt
+# 2. 構建帶有強烈時間限制與 Google Search Grounding 的 Prompt
 prompt = f"""
-你是一位機構級固定收益與總體經濟分析師。
+你是一位機構級的專業金融分析師與總體經濟研究員。
 
-以下是今天（{today_str}）全球財經媒體發布的最新即時新聞與數據資料：
+今天的精準日期是：{date_display}。
 
-=== 今日金融市場與經濟原始新聞資料 ===
-{news_context}
-=======================================
+【重要任務與聯網指令】：
+請使用 Google 搜尋工具，搜尋最近 24 小時內（即 {date_display} 當天與前一日）全球金融市場、聯準會（Fed）政策動態、美債殖利率、美股三大指數與大宗商品的最新報導與即時數據。
 
-【任務要求 - 數據驅動型晨報】：
-請根據上述原始新聞，編譯一份強調「定量數據與精確指標」的《每日金融市場要聞》。
+【嚴格寫作規範 - 防歷史幻覺】：
+1. 所有新聞與數據必須限定為【最近 24 小時內】發生的最新事件。
+2. 嚴禁引述任何過去年份的歷史舊新聞（例如：嚴禁提及 2025 年初的 DeepSeek 事件或 2023 年的美債高點事件）。
+3. 若當日市場處於週末休市，請總結剛收盤的最新周線表現與最新發布的經濟數據。
+4. 著重於定量數據：包含指數漲跌幅 %、美債殖利率點數（bps）、通膨指標（CPI/PCE）與利率期貨預估值。
 
-1. **數據寫作重點（關鍵要求）**：
-   - **總體經濟數據**：若新聞提及通膨、就業或經濟數據，請明確寫出確切數值（如 CPI 年增率 %、基點 bps、利率區間 %、預估值與前值對比）。
-   - **債券與利率市場**：強調美債殖利率變化（如 10 年期/2 年期殖利率點數變化 bps、倒掛或陡峭化程度）、聯準會降息/升息機率。
-   - **資產價格走勢**：包含具體漲跌幅 % 或點數（如美股指數、原油價格 $/桶、美元指數 DXY 走勢）。
+【報告架構與格式】：
+請將內容分為以下四個章節：
+一、全球金融市場焦點與數據速覽
+二、總體經濟、央行政策與債券市場
+三、科技產業與企業財務動態
+四、外匯、大宗商品與信用市場
 
-2. **嚴格防幻覺規範**：
-   - 具體數據必須嚴格基於提供的新聞內容。若新聞中無特定數字，請基於新聞事件進行精準的量化邏輯推論（如：因強勁就業數據引發美債殖利率上揚 X 個基點），切勿編造虛構數據。
-
-3. **章節結構**：
-   一、全球金融市場焦點與數據速覽
-   二、總體經濟、央行政策與債券市場
-   三、科技產業與企業財務表現
-   四、外匯、大宗商品與信用市場
-
-4. **格式規範**：
-   - 使用繁體中文，語言風格需專業、客觀且具備機構研報品質。
-   - 請將關鍵數據與百分比以 <strong>標籤加粗顯示</strong>。
-   - 格式直接輸出為排版美觀的 HTML 內文（包含 <h2>, <h3>, <ul>, <li>, <strong> 等標籤）。
+要求：
+- 使用繁體中文。
+- 請將關鍵數字與數據用 <strong> 標籤加粗顯示。
+- 格式請直接輸出為排版美觀的 HTML 內文（包含 <h2>, <h3>, <ul>, <li>, <strong> 等標籤）。
 """
 
-# 4. 呼叫 Gemini API
+# 3. 呼叫 Gemini API（開啟 Google Search Grounding，且關閉 AFC 以避免死鎖）
 models_to_try = ['gemini-3.8-flash']
 content_html = None
 
 for model_name in models_to_try:
-    print(f"🔄 開始嘗試模型: {model_name}")
+    print(f"🔄 開始嘗試模型: {model_name} (開啟實時 Google Search 搜尋)...")
     for attempt in range(1, 5):
         try:
             print(f"正在發送 API 請求 (模型: {model_name}, 第 {attempt} 次嘗試)...")
@@ -97,6 +65,7 @@ for model_name in models_to_try:
                 model=model_name,
                 contents=prompt,
                 config=types.GenerateContentConfig(
+                    tools=[{"google_search": {}}],  # 啟用 Google 官方實時搜尋功能
                     automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
                 )
             )
@@ -116,7 +85,7 @@ if not content_html:
     print("❌ API 伺服器持續繁忙，請過一段時間後再手動觸發。")
     sys.exit(1)
 
-# 5. 寫入當天的獨立文章頁面
+# 4. 寫入當天的獨立文章頁面
 post_html_template = f"""<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -130,7 +99,7 @@ post_html_template = f"""<!DOCTYPE html>
         h2 {{ color: #2c3e50; margin-top: 25px; border-bottom: 1px solid #eee; padding-bottom: 5px; }}
         ul {{ padding-left: 20px; }}
         li {{ margin-bottom: 8px; }}
-        strong {{ color: #c0392b; }} /* 將數據加粗強調顯色 */
+        strong {{ color: #c0392b; }} /* 數據加粗紅字強調 */
         a {{ color: #3498db; text-decoration: none; }}
         .back-link {{ display: inline-block; margin-bottom: 15px; font-weight: bold; }}
     </style>
@@ -139,7 +108,7 @@ post_html_template = f"""<!DOCTYPE html>
     <div class="container">
         <a href="../index.html" class="back-link">← 返回首頁文章目錄</a>
         <h1>每日金融市場要聞</h1>
-        <div style="color: #7f8c8d;">日期：{today_str}（機構級總經數據與市場編譯）</div>
+        <div style="color: #7f8c8d;">日期：{today_str}（即時 Google 搜尋數據與市場解讀）</div>
         <hr>
         {content_html}
     </div>
@@ -150,7 +119,7 @@ post_html_template = f"""<!DOCTYPE html>
 with open(post_filename, "w", encoding="utf-8") as f:
     f.write(post_html_template)
 
-# 6. 掃描 posts 資料夾，更新首頁 index.html
+# 5. 掃描 posts 資料夾，更新首頁 index.html
 all_posts = glob.glob("posts/*.html")
 all_posts.sort(reverse=True)
 
