@@ -3,6 +3,7 @@ import sys
 import time
 import glob
 import datetime
+import feedparser
 from google import genai
 from google.genai import types
 
@@ -21,24 +22,58 @@ today_str = datetime.datetime.now().strftime("%Y-%m-%d")
 os.makedirs("posts", exist_ok=True)
 post_filename = f"posts/{today_str}.html"
 
-# 2. 設定 Prompt
+# 2. 抓取 WSJ 官方 RSS 新聞 (包含市場、總經與科技新聞)
+rss_urls = [
+    "https://feeds.a.dj.com/rss/RSSMarketsMain.xml",      # 市場焦點
+    "https://feeds.a.dj.com/rss/WSJcomUSBusiness.xml",   # 商業與總經
+    "https://feeds.a.dj.com/rss/RSSWSJTechnologySection.xml" # 科技產業
+]
+
+raw_news_items = []
+print("正在抓取 WSJ 最新 RSS 新聞...")
+
+for url in rss_urls:
+    try:
+        feed = feedparser.parse(url)
+        for entry in feed.entries[:10]: # 每個 Feed 抓取前 10 條最新新聞
+            title = entry.get('title', '')
+            summary = entry.get('summary', '')
+            link = entry.get('link', '')
+            raw_news_items.append(f"- 標題: {title}\n  簡介: {summary}\n  連結: {link}\n")
+    except Exception as e:
+        print(f"⚠️ 抓取 RSS 失敗 ({url}): {e}")
+
+if not raw_news_items:
+    print("❌ 未能成功抓取到任何 RSS 新聞，請檢查網路連線。")
+    sys.exit(1)
+
+news_context = "\n".join(raw_news_items)
+print(f"✅ 成功抓取 {len(raw_news_items)} 則實時新聞資料！")
+
+# 3. 構建 Prompt，將真實新聞餵給 Gemini
 prompt = f"""
-你是一位專業的金融分析師。請為我整理今天（{today_str}）《華爾街日報》(WSJ) 的重點摘要。
+你是一位專業的金融分析師。以下是今天（{today_str}）從《華爾街日報》(WSJ) 官方 RSS Feed 抓取的最新實時新聞標題與摘要：
+
+=== WSJ 今日新聞原始資料 ===
+{news_context}
+===========================
+
+請根據上述「真實新聞資料」，進行精準的翻譯、歸納與專業解讀，並產出每日晨報重點摘要。
 
 重點要求：
-1. 聚焦於：全球宏觀經濟、Fed貨幣政策、中東與地緣政治、美中貿易與AI科技產業發展。
+1. 嚴格基於提供的新聞資料進行整理，切勿憑空想像或自行編造未發生的新聞事件。
 2. 結構包含：頭條焦點、總體經濟與央行、產業與科技、市場與商品。
 3. 嚴格限制：請勿包含任何紫微斗數、算命、占星或非理性分析內容。
 4. 使用繁體中文，格式請直接輸出為排版美觀的 HTML 內文（包含 <h2>, <h3>, <ul>, <li>, <strong> 等標籤）。
 """
 
-# 3. 呼叫 Gemini API（多模型 + 拉長重試間隔）
-models_to_try = ['gemini-3.8-flash', 'gemini-2.5-flash']
+# 4. 呼叫 Gemini API（帶有自動重試機制）
+models_to_try = ['gemini-2.5-flash']
 content_html = None
 
 for model_name in models_to_try:
     print(f"🔄 開始嘗試模型: {model_name}")
-    for attempt in range(1, 5):  # 每個模型嘗試 4 次
+    for attempt in range(1, 5):
         try:
             print(f"正在發送 API 請求 (模型: {model_name}, 第 {attempt} 次嘗試)...")
             response = client.models.generate_content(
@@ -52,7 +87,7 @@ for model_name in models_to_try:
             print("✅ 成功取得 API 回應！")
             break
         except Exception as e:
-            wait_time = attempt * 10  # 第一次等 10 秒，第二次等 20 秒，以此類推
+            wait_time = attempt * 10
             print(f"⚠️ 失敗原因: {e}")
             print(f"⏳ 等待 {wait_time} 秒後進行下一次重試...")
             time.sleep(wait_time)
@@ -64,7 +99,7 @@ if not content_html:
     print("❌ API 伺服器持續繁忙，請過一段時間後再手動觸發。")
     sys.exit(1)
 
-# 4. 寫入當天的獨立文章頁面
+# 5. 寫入當天的獨立文章頁面
 post_html_template = f"""<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -86,7 +121,7 @@ post_html_template = f"""<!DOCTYPE html>
     <div class="container">
         <a href="../index.html" class="back-link">← 返回首頁文章目錄</a>
         <h1>華爾街日報 每日重點摘要</h1>
-        <div style="color: #7f8c8d;">日期：{today_str}</div>
+        <div style="color: #7f8c8d;">日期：{today_str}（即時 RSS 新聞整理）</div>
         <hr>
         {content_html}
     </div>
@@ -97,7 +132,7 @@ post_html_template = f"""<!DOCTYPE html>
 with open(post_filename, "w", encoding="utf-8") as f:
     f.write(post_html_template)
 
-# 5. 掃描 posts 資料夾，更新首頁 index.html
+# 6. 掃描 posts 資料夾，更新首頁 index.html
 all_posts = glob.glob("posts/*.html")
 all_posts.sort(reverse=True)
 
