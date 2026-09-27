@@ -3,14 +3,14 @@ import sys
 import glob
 import datetime
 from google import genai
+from google.genai import types
 
 # 1. 檢查並讀取 API Key
 api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key:
-    print("❌ 錯誤：找不到 GEMINI_API_KEY！請檢查 GitHub Settings > Secrets 是否設定正確。")
+    print("❌ 錯誤：找不到 GEMINI_API_KEY！請檢查 GitHub Settings > Secrets 設定。")
     sys.exit(1)
 
-# 清除金鑰前後可能誤複製到的空格或換行
 api_key = api_key.strip()
 client = genai.Client(api_key=api_key)
 
@@ -31,12 +31,15 @@ prompt = f"""
 4. 使用繁體中文，格式請直接輸出為排版美觀的 HTML 內文（包含 <h2>, <h3>, <ul>, <li>, <strong> 等標籤）。
 """
 
-# 3. 呼叫 Gemini API（加上 Try-Except 捕捉精確錯誤）
+# 3. 呼叫 Gemini API (使用修正後的模型名稱 gemini-2.5-flash 並關閉 AFC)
 try:
     print("正在發送 API 請求...")
     response = client.models.generate_content(
-        model='gemini-2.0-flash',  # 使用當前標準穩定模型
+        model='gemini-2.5-flash',
         contents=prompt,
+        config=types.GenerateContentConfig(
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
+        )
     )
     content_html = response.text
     print("✅ 成功取得 API 回應！")
