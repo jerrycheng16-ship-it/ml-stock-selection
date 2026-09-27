@@ -1,12 +1,14 @@
 import os
 import glob
 import datetime
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 
-# 1. 初始化 Gemini Client
+# 1. 讀取 API Key 並初始化
 api_key = os.environ.get("GEMINI_API_KEY")
-client = genai.Client(api_key=api_key)
+if not api_key:
+    raise ValueError("找不到 GEMINI_API_KEY 環境變數，請檢查 GitHub Secrets 設定！")
+
+genai.configure(api_key=api_key)
 
 today_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
@@ -25,14 +27,9 @@ prompt = f"""
 4. 使用繁體中文，格式請直接輸出為排版美觀的 HTML 內文（包含 <h2>, <h3>, <ul>, <li>, <strong> 等標籤）。
 """
 
-# 3. 呼叫 API (加上 config 關閉 AFC 避免報錯)
-response = client.models.generate_content(
-    model='gemini-2.5-flash',
-    contents=prompt,
-    config=types.GenerateContentConfig(
-        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
-    )
-)
+# 3. 呼叫 Gemini 2.5 Flash 模型
+model = genai.GenerativeModel('gemini-2.5-flash')
+response = model.generate_content(prompt)
 content_html = response.text
 
 # 4. 寫入當天的獨立文章頁面
@@ -68,7 +65,7 @@ post_html_template = f"""<!DOCTYPE html>
 with open(post_filename, "w", encoding="utf-8") as f:
     f.write(post_html_template)
 
-# 5. 掃描 posts 資料夾內的所有檔案，更新首頁 (index.html) 目錄
+# 5. 掃描 posts 資料夾，更新首頁 index.html
 all_posts = glob.glob("posts/*.html")
 all_posts.sort(reverse=True)
 
