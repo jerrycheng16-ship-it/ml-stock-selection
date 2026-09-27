@@ -1,11 +1,12 @@
 import os
 import sys
+import time
 import glob
 import datetime
 from google import genai
 from google.genai import types
 
-# 1. 檢查並讀取免費的 API Key
+# 1. 檢查並讀取 API Key
 api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key:
     print("❌ 錯誤：找不到 GEMINI_API_KEY！請檢查 GitHub Settings > Secrets 設定。")
@@ -31,20 +32,33 @@ prompt = f"""
 4. 使用繁體中文，格式請直接輸出為排版美觀的 HTML 內文（包含 <h2>, <h3>, <ul>, <li>, <strong> 等標籤）。
 """
 
-# 3. 呼叫 Gemini API (使用最新的 gemini-3.8-flash 模型)
-try:
-    print("正在發送 API 請求...")
-    response = client.models.generate_content(
-        model='gemini-3.8-flash',
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
-        )
-    )
-    content_html = response.text
-    print("✅ 成功取得 API 回應！")
-except Exception as e:
-    print(f"❌ API 請求失敗！具體錯誤原因：{e}")
+# 3. 呼叫 Gemini API（帶有自動重試機制）
+models_to_try = ['gemini-2.5-flash', 'gemini-1.5-flash']
+content_html = None
+
+for model_name in models_to_try:
+    for attempt in range(1, 4):  # 最多重試 3 次
+        try:
+            print(f"正在發送 API 請求 (模型: {model_name}, 第 {attempt} 次嘗試)...")
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
+                )
+            )
+            content_html = response.text
+            print("✅ 成功取得 API 回應！")
+            break
+        except Exception as e:
+            print(f"⚠️ 第 {attempt} 次請求失敗 ({e})，等待 5 秒後重試...")
+            time.sleep(5)
+    
+    if content_html:
+        break
+
+if not content_html:
+    print("❌ API 請求多次失敗，伺服器繁忙，請稍後再試。")
     sys.exit(1)
 
 # 4. 寫入當天的獨立文章頁面
