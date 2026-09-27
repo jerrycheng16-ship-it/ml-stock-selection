@@ -67,8 +67,8 @@ prompt = f"""
 4. 使用繁體中文，格式請直接輸出為排版美觀的 HTML 內文（包含 <h2>, <h3>, <ul>, <li>, <strong> 等標籤）。
 """
 
-# 4. 呼叫 Gemini API（帶有自動重試機制）
-models_to_try = ['gemini-2.5-flash']
+# 4. 呼叫 Gemini API (更新為目前指定的 gemini-3.8-flash 模型)
+models_to_try = ['gemini-3.8-flash']
 content_html = None
 
 for model_name in models_to_try:
