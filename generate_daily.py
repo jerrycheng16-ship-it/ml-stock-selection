@@ -3,6 +3,7 @@ import sys
 import time
 import glob
 import datetime
+import urllib.parse
 import feedparser
 from google import genai
 from google.genai import types
@@ -22,52 +23,59 @@ today_str = datetime.datetime.now().strftime("%Y-%m-%d")
 os.makedirs("posts", exist_ok=True)
 post_filename = f"posts/{today_str}.html"
 
-# 2. 抓取 WSJ 官方 RSS 新聞 (包含市場、總經與科技新聞)
-rss_urls = [
-    "https://feeds.a.dj.com/rss/RSSMarketsMain.xml",      # 市場焦點
-    "https://feeds.a.dj.com/rss/WSJcomUSBusiness.xml",   # 商業與總經
-    "https://feeds.a.dj.com/rss/RSSWSJTechnologySection.xml" # 科技產業
-]
+# 2. 從 Google News RSS 抓取《華爾街日報》(WSJ) 當天的實時新聞
+rss_url = "https://news.google.com/rss/search?q=site:wsj.com&hl=en-US&gl=US&ceid=US:en"
+
+print("正在透過 Google News RSS 抓取《華爾街日報》最新即時新聞...")
+feed = feedparser.parse(rss_url)
 
 raw_news_items = []
-print("正在抓取 WSJ 最新 RSS 新聞...")
-
-for url in rss_urls:
-    try:
-        feed = feedparser.parse(url)
-        for entry in feed.entries[:10]: # 每個 Feed 抓取前 10 條最新新聞
-            title = entry.get('title', '')
-            summary = entry.get('summary', '')
-            link = entry.get('link', '')
-            raw_news_items.append(f"- 標題: {title}\n  簡介: {summary}\n  連結: {link}\n")
-    except Exception as e:
-        print(f"⚠️ 抓取 RSS 失敗 ({url}): {e}")
+# 抓取最新的 15 則 WSJ 新聞
+for entry in feed.entries[:15]:
+    title = entry.get('title', '')
+    published = entry.get('published', '')
+    link = entry.get('link', '')
+    # 清理標題尾端的 - The Wall Street Journal
+    clean_title = title.replace(" - The Wall Street Journal", "").replace(" - WSJ", "")
+    raw_news_items.append(f"【新聞發布時間: {published}】\n標題: {clean_title}\n連結: {link}\n")
 
 if not raw_news_items:
-    print("❌ 未能成功抓取到任何 RSS 新聞，請檢查網路連線。")
+    print("❌ 未能成功抓取到 WSJ 新聞！")
     sys.exit(1)
 
 news_context = "\n".join(raw_news_items)
-print(f"✅ 成功抓取 {len(raw_news_items)} 則實時新聞資料！")
+print(f"✅ 成功抓取 {len(raw_news_items)} 則 WSJ 今日實時新聞標題！")
 
-# 3. 構建 Prompt，將真實新聞餵給 Gemini
+# 3. 構建嚴格防幻覺 Prompt，要求 AI 「僅翻譯與摘要所提供的新聞標題」
 prompt = f"""
-你是一位專業的金融分析師。以下是今天（{today_str}）從《華爾街日報》(WSJ) 官方 RSS Feed 抓取的最新實時新聞標題與摘要：
+你是一位嚴謹的金融新聞編譯與分析師。
+
+以下是今天（{today_str}）剛剛發布的《華爾街日報》(WSJ) 最新真實新聞列表：
 
 === WSJ 今日新聞原始資料 ===
 {news_context}
 ===========================
 
-請根據上述「真實新聞資料」，進行精準的翻譯、歸納與專業解讀，並產出每日晨報重點摘要。
+【最高指令 - 嚴禁編造與歷史回溯】：
+1. 你的任務是「直接翻譯並分類」上述提供的新聞列表。
+2. 絕對不可以補充或引述任何上述資料中未提及的歷史舊新聞（例如：嚴禁提及過去發生的舊事件、舊股票暴跌事件）。
+3. 每個新聞重點必須明確對應到上面列表中的真實標題。
 
-重點要求：
-1. 嚴格基於提供的新聞資料進行整理，切勿憑空想像或自行編造未發生的新聞事件。
-2. 結構包含：頭條焦點、總體經濟與央行、產業與科技、市場與商品。
-3. 嚴格限制：請勿包含任何紫微斗數、算命、占星或非理性分析內容。
-4. 使用繁體中文，格式請直接輸出為排版美觀的 HTML 內文（包含 <h2>, <h3>, <ul>, <li>, <strong> 等標籤）。
+【輸出格式要求】：
+- 請將以上真實新聞歸類為以下四大分區：
+  一、頭條焦點
+  二、總體經濟與央行
+  三、產業與科技
+  四、市場與商品
+- 使用繁體中文。
+- 每個新聞條目請包含：
+  1. 中文翻譯標題（加粗）
+  2. 根據原文標題的簡要中文解讀與重點說明（1-2句）
+- 嚴格限制：請勿包含任何紫微斗數、算命、占星或非理性分析內容。
+- 格式直接輸出為排版美觀的 HTML 內文（使用 <h2>, <h3>, <ul>, <li>, <strong> 等標籤）。
 """
 
-# 4. 呼叫 Gemini API (更新為目前指定的 gemini-3.8-flash 模型)
+# 4. 呼叫 Gemini API (使用 gemini-3.8-flash 模型)
 models_to_try = ['gemini-3.8-flash']
 content_html = None
 
@@ -121,7 +129,7 @@ post_html_template = f"""<!DOCTYPE html>
     <div class="container">
         <a href="../index.html" class="back-link">← 返回首頁文章目錄</a>
         <h1>華爾街日報 每日重點摘要</h1>
-        <div style="color: #7f8c8d;">日期：{today_str}（即時 RSS 新聞整理）</div>
+        <div style="color: #7f8c8d;">日期：{today_str}（即時新聞編譯）</div>
         <hr>
         {content_html}
     </div>
