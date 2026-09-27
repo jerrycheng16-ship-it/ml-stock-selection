@@ -1,14 +1,15 @@
 import os
 import glob
 import datetime
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
-# 1. 讀取 API Key 並初始化
+# 1. 讀取 API Key 並初始化 Client (新版 SDK 語法)
 api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key:
     raise ValueError("找不到 GEMINI_API_KEY 環境變數，請檢查 GitHub Secrets 設定！")
 
-genai.configure(api_key=api_key)
+client = genai.Client(api_key=api_key)
 
 today_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
@@ -28,8 +29,10 @@ prompt = f"""
 """
 
 # 3. 呼叫 Gemini 2.5 Flash 模型
-model = genai.GenerativeModel('gemini-2.5-flash')
-response = model.generate_content(prompt)
+response = client.models.generate_content(
+    model='gemini-2.5-flash',
+    contents=prompt,
+)
 content_html = response.text
 
 # 4. 寫入當天的獨立文章頁面
