@@ -1,10 +1,10 @@
 import os
 import glob
 import datetime
-from google import genai
-from google.genai import types
+import google_genai as genai
+from google_genai import types
 
-# 1. 讀取 API Key 並初始化 Client (新版 SDK 語法)
+# 1. 讀取 API Key 並初始化 Client
 api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key:
     raise ValueError("找不到 GEMINI_API_KEY 環境變數，請檢查 GitHub Secrets 設定！")
