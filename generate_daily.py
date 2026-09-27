@@ -25,7 +25,7 @@ date_display = today_dt.strftime("%Y 年 %m 月 %d 日")
 os.makedirs("posts", exist_ok=True)
 post_filename = f"posts/{today_str}.html"
 
-# 2. 抓取「路透中文網」與「Yahoo 奇摩財經」即時 RSS 新聞（適度精簡避免 TPM 爆表）
+# 2. 抓取「路透中文網」與「Yahoo 奇摩財經」即時 RSS 新聞
 rss_urls = [
     # 路透社中文網焦點
     "https://news.google.com/rss/search?q=site:cn.reuters.com+OR+site:reuters.com+hl:zh-TW&hl=zh-TW&gl=TW&ceid=TW:zh-Hant",
@@ -41,10 +41,10 @@ print(f"正在從路透中文網及 Yahoo 奇摩財經抓取 {date_display} 最�
 for url in rss_urls:
     try:
         feed = feedparser.parse(url)
-        for entry in feed.entries[:7]: # 每個 Feed 擷取前 7 條新聞，避免 Token 過多
+        for entry in feed.entries[:6]: # 每個 Feed 擷取前 6 條新聞，精簡 Token 消耗
             title = entry.get('title', '')
             published = entry.get('published', '')
-            summary = entry.get('summary', '')[:150] # 摘要截取前 150 字
+            summary = entry.get('summary', '')[:120]
             raw_news_items.append(f"【時間: {published}】\n標題: {title}\n摘要: {summary}\n")
     except Exception as e:
         print(f"⚠️ 抓取 RSS 失敗 ({url}): {e}")
@@ -91,13 +91,13 @@ prompt = f"""
 - 格式直接輸出為排版美觀的 HTML 內文（使用 <h2>, <h3>, <ul>, <li>, <strong>, <p> 等標籤）。
 """
 
-# 4. 呼叫 Gemini API (加上 15s/30s 指數退避重試，避開 429/503)
-models_to_try = ['gemini-3.8-flash']
+# 4. 呼叫 Gemini API (加入 gemini-2.5-flash 作為備用模型)
+models_to_try = ['gemini-3.8-flash', 'gemini-2.5-flash']
 content_html = None
 
 for model_name in models_to_try:
     print(f"🔄 開始嘗試模型: {model_name}...")
-    for attempt in range(1, 5):
+    for attempt in range(1, 4): # 每個模型嘗試 3 次
         try:
             print(f"正在發送 API 請求 (模型: {model_name}, 第 {attempt} 次嘗試)...")
             response = client.models.generate_content(
@@ -111,7 +111,7 @@ for model_name in models_to_try:
             print("✅ 成功取得 API 回應！")
             break
         except Exception as e:
-            wait_time = attempt * 15 # 第一次等 15 秒，第二次等 30 秒，給予充足的 API 配額冷卻時間
+            wait_time = attempt * 20 # 等待時間拉長至 20s、40s，給配額充分冷卻
             print(f"⚠️ 失敗原因: {e}")
             print(f"⏳ 等待 {wait_time} 秒後進行下一次重試...")
             time.sleep(wait_time)
