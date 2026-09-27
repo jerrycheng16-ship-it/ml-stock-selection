@@ -1,8 +1,10 @@
 import os
+import sys
 import glob
 import datetime
-import google_genai as genai
-from google_genai import types
+
+# 強制確保能正確載入 google.genai 模組
+from google import genai
 
 # 1. 讀取 API Key 並初始化 Client
 api_key = os.environ.get("GEMINI_API_KEY")
