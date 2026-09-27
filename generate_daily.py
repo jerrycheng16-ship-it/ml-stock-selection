@@ -25,27 +25,27 @@ date_display = today_dt.strftime("%Y 年 %m 月 %d 日")
 os.makedirs("posts", exist_ok=True)
 post_filename = f"posts/{today_str}.html"
 
-# 2. 抓取「路透中文網」與「Yahoo 奇摩財經」即時 RSS 新聞（增加抓取量至 15~20 條）
+# 2. 抓取「路透中文網」與「Yahoo 奇摩財經」即時 RSS 新聞（適度精簡避免 TPM 爆表）
 rss_urls = [
     # 路透社中文網焦點
     "https://news.google.com/rss/search?q=site:cn.reuters.com+OR+site:reuters.com+hl:zh-TW&hl=zh-TW&gl=TW&ceid=TW:zh-Hant",
     # Yahoo 奇摩財經 (總經、美股、台股、美債)
     "https://news.google.com/rss/search?q=site:tw.stock.yahoo.com+OR+site:finance.yahoo.com+通膨+OR+聯準會+OR+美股+OR+美債+OR+殖利率&hl=zh-TW&gl=TW&ceid=TW:zh-Hant",
     # Google News 繁體中文全球金融市場
-    "https://news.google.com/rss/search?q=聯準會+OR+美債殖利率+OR+美股三大指數+OR+經濟數據&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
+    "https://news.google.com/rss/search?q=聯準會+OR+美債殖利率+OR+美股三大指數&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
 ]
 
 raw_news_items = []
-print(f"正在從路透中文網及 Yahoo 奇摩財經抓取 {date_display} 最新實時金融新聞（深度版）...")
+print(f"正在從路透中文網及 Yahoo 奇摩財經抓取 {date_display} 最新實時金融新聞...")
 
 for url in rss_urls:
     try:
         feed = feedparser.parse(url)
-        for entry in feed.entries[:15]: # 增加至每個 Feed 擷取 15 條新聞
+        for entry in feed.entries[:7]: # 每個 Feed 擷取前 7 條新聞，避免 Token 過多
             title = entry.get('title', '')
             published = entry.get('published', '')
-            summary = entry.get('summary', '')
-            raw_news_items.append(f"【發布時間: {published}】\n標題: {title}\n摘要: {summary}\n")
+            summary = entry.get('summary', '')[:150] # 摘要截取前 150 字
+            raw_news_items.append(f"【時間: {published}】\n標題: {title}\n摘要: {summary}\n")
     except Exception as e:
         print(f"⚠️ 抓取 RSS 失敗 ({url}): {e}")
 
@@ -54,9 +54,9 @@ if not raw_news_items:
     sys.exit(1)
 
 news_context = "\n".join(raw_news_items)
-print(f"✅ 成功抓取 {len(raw_news_items)} 則大量新聞資料！")
+print(f"✅ 成功抓取 {len(raw_news_items)} 則精選新聞資料！")
 
-# 3. 構建「深度機構研報」Prompt
+# 3. 構建「機構級金融研報」Prompt
 prompt = f"""
 你是一位機構級的高級總體經濟分析師與資深財經主編。
 
@@ -69,35 +69,34 @@ prompt = f"""
 ================================
 
 【任務要求 - 深度機構級金融研報】：
-請根據上述原始新聞，編譯並擴充為一份內容豐富、論述完整且富含數據的《每日金融市場要聞》。
+請根據上述原始新聞，編譯並整理為一份內容詳實、論述完整且富含數據的《每日金融市場要聞》。
 
-【寫作指南與豐富度提升要求】：
-1. **拒絕過度精簡**：不要只用一兩句話帶過！請對每個重大新聞事件進行**詳細的段落分析**，包含：
-   - **事件背景**：為何會發生此事件？
-   - **精確定量數據**：強調指數點數、漲跌幅 %、美債殖利率 bp 變化、通膨率 %、央行目標利率及資產價格。
-   - **市場影響與機構觀點**：此事件對債券殖利率曲線、股票估值或匯率帶來的延伸影響。
-2. **語系與金融術語**：請統一轉換為**標準繁體中文**及台灣金融市場用語（如：殖利率、聯準會、通膨、晶片、軟體、基點 bps）。
-3. **嚴格防幻覺**：分析必須嚴格基於提供的新聞資料與當天實際市場情境，絕不允許提及過去年份的歷史舊事件（如 2025 年初或更早的舊新聞）。
+【寫作指南】：
+1. **內容充實度**：請對每個新聞主題進行完整的段落寫作與分析，包含：
+   - **事件與數據**：指數漲跌幅 %、美債殖利率 bp 變化、通膨率 %、央行目標利率及資產價格。
+   - **市場影響與機構觀點**：說明該事件對債券殖利率曲線、股票估值或匯率帶來的影響。
+2. **語系與金融術語**：請統一使用**標準繁體中文**及台灣金融市場用語（如：殖利率、聯準會、通膨、晶片、軟體、基點 bps）。
+3. **嚴格防幻覺**：分析必須嚴格基於提供的新聞資料，絕不允許提及過去年份的歷史舊事件（如 2025 年初或更早的舊新聞）。
 
 【報告章節結構】：
-請將新聞內容分類為以下四個章節，並確保每個章節都有 3~5 個詳細的子項目：
-一、全球金融市場焦點與數據速覽（涵蓋三大指數、整體市場情緒與大盤動態）
-二、總體經濟、央行政策與債券市場（深入分析 Fed 官員談話、經濟數據如 CPI/PCE/就業、美債殖利率曲線變化）
-三、科技產業與企業財務動態（涵蓋 AI 供應鏈、科技巨頭財報與產業動向）
-四、外匯、大宗商品與信用市場（美元指數、原油 $/桶、黃金與信用利差）
+請將新聞內容分類為以下四個章節：
+一、全球金融市場焦點與數據速覽
+二、總體經濟、央行政策與債券市場
+三、科技產業與企業財務動態
+四、外匯、大宗商品與信用市場
 
 【格式要求】：
 - 使用繁體中文。
 - 關鍵數字與百分比請以 <strong> 標籤加粗顯示。
-- 格式直接輸出為排版美觀、層次分明的 HTML 內文（使用 <h2>, <h3>, <ul>, <li>, <strong>, <p> 等標籤）。
+- 格式直接輸出為排版美觀的 HTML 內文（使用 <h2>, <h3>, <ul>, <li>, <strong>, <p> 等標籤）。
 """
 
-# 4. 呼叫 Gemini API
+# 4. 呼叫 Gemini API (加上 15s/30s 指數退避重試，避開 429/503)
 models_to_try = ['gemini-3.8-flash']
 content_html = None
 
 for model_name in models_to_try:
-    print(f"🔄 開始嘗試模型: {model_name} (生成深度長文模式)...")
+    print(f"🔄 開始嘗試模型: {model_name}...")
     for attempt in range(1, 5):
         try:
             print(f"正在發送 API 請求 (模型: {model_name}, 第 {attempt} 次嘗試)...")
@@ -112,7 +111,7 @@ for model_name in models_to_try:
             print("✅ 成功取得 API 回應！")
             break
         except Exception as e:
-            wait_time = attempt * 10
+            wait_time = attempt * 15 # 第一次等 15 秒，第二次等 30 秒，給予充足的 API 配額冷卻時間
             print(f"⚠️ 失敗原因: {e}")
             print(f"⏳ 等待 {wait_time} 秒後進行下一次重試...")
             time.sleep(wait_time)
@@ -121,7 +120,7 @@ for model_name in models_to_try:
         break
 
 if not content_html:
-    print("❌ API 伺服器持續繁忙，請過一段時間後再手動觸發。")
+    print("❌ API 伺服器持續繁忙或配額不足，請稍後再試。")
     sys.exit(1)
 
 # 5. 寫入當天的獨立文章頁面
@@ -148,7 +147,7 @@ post_html_template = f"""<!DOCTYPE html>
 <body>
     <div class="container">
         <a href="../index.html" class="back-link">← 返回首頁文章目錄</a>
-        <h1>每日金融市場要聞（深度報告）</h1>
+        <h1>每日金融市場要聞</h1>
         <div style="color: #7f8c8d;">日期：{today_str}（路透中文網 & Yahoo 奇摩財經 深度編譯）</div>
         <hr>
         {content_html}
@@ -167,7 +166,7 @@ all_posts.sort(reverse=True)
 list_items = ""
 for post_path in all_posts:
     date_part = os.path.basename(post_path).replace(".html", "")
-    list_items += f'<li><a href="{post_path}">【{date_part}】每日金融市場要聞（路透 & Yahoo 財經深度摘要）</a></li>\n'
+    list_items += f'<li><a href="{post_path}">【{date_part}】每日金融市場要聞（路透 & Yahoo 財經摘要）</a></li>\n'
 
 index_html_template = f"""<!DOCTYPE html>
 <html lang="zh-TW">
