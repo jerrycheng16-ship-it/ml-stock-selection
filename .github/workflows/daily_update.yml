@@ -10,7 +10,7 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 賦予 GitHub Actions 寫入程式碼的權限
+      contents: write # 賦予 GitHub Actions 寫入與提交修改的權限
 
     steps:
       - name: Checkout Repository
@@ -23,7 +23,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install google-genai
+          pip install google-generativeai
 
       - name: Generate Daily Report
         env:
