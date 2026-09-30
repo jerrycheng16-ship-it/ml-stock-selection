@@ -222,15 +222,15 @@ US_STOCK_MAP = {
 US_KEYS = list(US_STOCK_MAP.keys())
 
 # -------------------------------------------------------------
-# 3. 跨資產 ETF 配置字典 (已移除 BNO)
+# 3. 跨資產 ETF 配置字典
 # -------------------------------------------------------------
 ETF_STOCK_MAP = {
     "SPY": "S&P 500 ETF", "QQQ": "Nasdaq 100 ETF", "TLT": "20+年期美國公債 ETF",
-    "GLD": "黃金信託 ETF", "IWM": "羅素 2000 小型股 ETF", "VNQ": "美國房地產 ETF",
-    "SMH": "半導體產業 ETF", "VGK": "歐洲 FTSE ETF", "EWT": "MSCI 台灣 ETF",
-    "EWY": "MSCI 韓國 ETF", "HYG": "美國高收益債 ETF", "EMB": "新興市場美元債 ETF",
-    "NDIA": "印度概念 ETF", "ASHR": "中國滬深 300 ETF", "AAXJ": "亞洲除日本 ETF",
-    "EEM": "MSCI 新興市場 ETF", "SLV": "白銀信託 ETF", "EWZ": "MSCI 巴西 ETF",
+    "GLD": "黃金信託 ETF", "SLV": "白銀信託 ETF", "IWM": "羅素 2000 小型股 ETF",
+    "VNQ": "美國房地產 ETF", "SMH": "半導體產業 ETF", "VGK": "歐洲 FTSE ETF",
+    "EWT": "MSCI 台灣 ETF", "EWY": "MSCI 韓國 ETF", "HYG": "美國高收益債 ETF",
+    "EMB": "新興市場美元債 ETF", "NDIA": "印度概念 ETF", "ASHR": "中國滬深 300 ETF",
+    "AAXJ": "亞洲除日本 ETF", "EEM": "MSCI 新興市場 ETF", "EWZ": "MSCI 巴西 ETF",
     "IEF": "7-10年期美國公債 ETF"
 }
 ETF_KEYS = list(ETF_STOCK_MAP.keys())
@@ -357,13 +357,13 @@ else:
         st.session_state.my_multiselect = KEYS_POOL[:15]
         st.session_state.excluded_stocks = []
         st.rerun()
-    if c3.button("全部列出 (19檔)"):
+    if c3.button("全部列出"):
         st.session_state.selected_stocks_state = KEYS_POOL
         st.session_state.my_multiselect = KEYS_POOL
         st.session_state.excluded_stocks = []
         st.rerun()
     if c4.button("核心資產組合"):
-        core_etfs = ["SPY", "QQQ", "TLT", "GLD", "IWM", "VNQ", "IEF", "HYG"]
+        core_etfs = ["SPY", "QQQ", "TLT", "GLD", "SLV", "IWM", "VNQ", "IEF", "HYG"]
         st.session_state.selected_stocks_state = core_etfs
         st.session_state.my_multiselect = core_etfs
         st.session_state.excluded_stocks = []
@@ -505,16 +505,17 @@ if run_backtest:
             })
 
             stock_fundamentals = {}
-            default_fallback_tickers = []
 
             for ticker in active_eval_pool:
                 try:
                     tk = yf.Ticker(ticker, session=session)
                     info = tk.info
-                    pe = info.get("trailingPE", 20.0)
+                    pe = info.get("trailingPE", None)
                     if pe is None or pe <= 0:
-                        pe = 20.0
-                    val_metric = 1.0 / pe
+                        val_metric = 0.0  # 若抓不到本益比（如 GLD、SLV 等大宗商品 ETF），將 Value 設為 0
+                    else:
+                        val_metric = 1.0 / pe
+
                     margin = info.get("profitMargins", 0.15)
                     if margin is None:
                         margin = 0.15
@@ -524,11 +525,7 @@ if run_backtest:
                     size_metric = np.log(mcap)
                     stock_fundamentals[ticker] = {"Value": val_metric, "Quality": margin, "Size": size_metric}
                 except Exception as e:
-                    default_fallback_tickers.append(ticker)
-                    stock_fundamentals[ticker] = {"Value": 0.05, "Quality": 0.15, "Size": 25.0}
-
-            if default_fallback_tickers:
-                st.warning(f"⚠️ 注意：以下標的無法順利取得完整基本面數據（如 ETF 無本益比，或雲端連線受限），已自動以預設值 (Value=5) 替代：{', '.join(default_fallback_tickers)}")
+                    stock_fundamentals[ticker] = {"Value": 0.0, "Quality": 0.15, "Size": 25.0}
 
             fetch_start_date = pd.to_datetime(target_start_date) - pd.DateOffset(months=(12 + train_window))
             fetch_end_date = pd.to_datetime(target_end_date) + pd.Timedelta(days=5)
@@ -567,7 +564,7 @@ if run_backtest:
                     if pd.isna(mom_val) or pd.isna(vol_val) or pd.isna(next_ret_val):
                         continue
 
-                    fund = stock_fundamentals.get(ticker, {"Value": 0.05, "Quality": 0.15, "Size": 25.0})
+                    fund = stock_fundamentals.get(ticker, {"Value": 0.0, "Quality": 0.15, "Size": 25.0})
                     dataset.append({
                         "Date": date_str, "Stock": ticker,
                         "Value": round(fund["Value"] * 100, 2),
