@@ -222,16 +222,16 @@ US_STOCK_MAP = {
 US_KEYS = list(US_STOCK_MAP.keys())
 
 # -------------------------------------------------------------
-# 3. 跨資產 ETF 配置字典 (已加回 BNO)
+# 3. 跨資產 ETF 配置字典 (已移除 BNO)
 # -------------------------------------------------------------
 ETF_STOCK_MAP = {
     "SPY": "S&P 500 ETF", "QQQ": "Nasdaq 100 ETF", "TLT": "20+年期美國公債 ETF",
-    "GLD": "黃金信託 ETF", "SLV": "白銀信託 ETF", "BNO": "布蘭特原油 ETF",
-    "IWM": "羅素 2000 小型股 ETF", "VNQ": "美國房地產 ETF", "SMH": "半導體產業 ETF",
-    "VGK": "歐洲 FTSE ETF", "EWT": "MSCI 台灣 ETF", "EWY": "MSCI 韓國 ETF",
-    "HYG": "美國高收益債 ETF", "EMB": "新興市場美元債 ETF", "NDIA": "印度概念 ETF",
-    "ASHR": "中國滬深 300 ETF", "AAXJ": "亞洲除日本 ETF", "EEM": "MSCI 新興市場 ETF",
-    "EWZ": "MSCI 巴西 ETF", "IEF": "7-10年期美國公債 ETF"
+    "GLD": "黃金信託 ETF", "IWM": "羅素 2000 小型股 ETF", "VNQ": "美國房地產 ETF",
+    "SMH": "半導體產業 ETF", "VGK": "歐洲 FTSE ETF", "EWT": "MSCI 台灣 ETF",
+    "EWY": "MSCI 韓國 ETF", "HYG": "美國高收益債 ETF", "EMB": "新興市場美元債 ETF",
+    "NDIA": "印度概念 ETF", "ASHR": "中國滬深 300 ETF", "AAXJ": "亞洲除日本 ETF",
+    "EEM": "MSCI 新興市場 ETF", "SLV": "白銀信託 ETF", "EWZ": "MSCI 巴西 ETF",
+    "IEF": "7-10年期美國公債 ETF"
 }
 ETF_KEYS = list(ETF_STOCK_MAP.keys())
 
@@ -357,13 +357,13 @@ else:
         st.session_state.my_multiselect = KEYS_POOL[:15]
         st.session_state.excluded_stocks = []
         st.rerun()
-    if c3.button("全部列出"):
+    if c3.button("全部列出 (19檔)"):
         st.session_state.selected_stocks_state = KEYS_POOL
         st.session_state.my_multiselect = KEYS_POOL
         st.session_state.excluded_stocks = []
         st.rerun()
     if c4.button("核心資產組合"):
-        core_etfs = ["SPY", "QQQ", "TLT", "GLD", "SLV", "BNO", "IWM", "VNQ", "IEF", "HYG"]
+        core_etfs = ["SPY", "QQQ", "TLT", "GLD", "IWM", "VNQ", "IEF", "HYG"]
         st.session_state.selected_stocks_state = core_etfs
         st.session_state.my_multiselect = core_etfs
         st.session_state.excluded_stocks = []
@@ -508,11 +508,6 @@ if run_backtest:
             default_fallback_tickers = []
 
             for ticker in active_eval_pool:
-                # 針對 GLD, SLV, BNO 直接將 Value 設為 0
-                if ticker in ["GLD", "SLV", "BNO"]:
-                    stock_fundamentals[ticker] = {"Value": 0.0, "Quality": 0.15, "Size": 25.0}
-                    continue
-
                 try:
                     tk = yf.Ticker(ticker, session=session)
                     info = tk.info
