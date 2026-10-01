@@ -528,7 +528,7 @@ if run_backtest:
                     stock_fundamentals[ticker] = {"Value": 0.05, "Quality": 0.15, "Size": 25.0}
 
             if default_fallback_tickers:
-                st.warning(f"⚠️ 注意：以下標的無法順利取得完整基本面數據（如 ETF 無本益比，或雲端連線受限），已自動以預設值替代：{', '.join(default_fallback_tickers)}")
+                st.warning(f"⚠️ 注意：以下標的無法順利取得完整基本面數據（如 ETF 無本益比，或雲端連線受限），已自動以預設值 (Value=5) 替代：{', '.join(default_fallback_tickers)}")
 
             fetch_start_date = pd.to_datetime(target_start_date) - pd.DateOffset(months=(12 + train_window))
             fetch_end_date = pd.to_datetime(target_end_date) + pd.Timedelta(days=5)
@@ -664,21 +664,17 @@ if run_backtest:
                         {"指標": "Long-Short (多空對沖) 勝率", "數值": f"{win_rate:.2f}%", "Max Drawdown": "-"}
                     ])
 
-                    # -------------------------------------------------------------
-                    # 🛠️ 修正處：確保最新預測月份正確對應「資料最後日期的次月」
-                    # -------------------------------------------------------------
                     latest_date = dates[-1]
                     next_month_str = (latest_date + pd.DateOffset(months=1)).strftime("%Y-%m")
-                    
-                    train_dates_latest = dates[-1 - train_window : -1]
-                    X_train_latest, y_train_latest = data_expanded.loc[train_dates_latest, expanded_feat_names], data_expanded.loc[train_dates_latest, "Next_Return"]
-                    X_test_latest = data_expanded.loc[dates[-1], expanded_feat_names]
+                    train_dates = dates[-1 - train_window : -1]
+                    X_train, y_train = data_expanded.loc[train_dates, expanded_feat_names], data_expanded.loc[train_dates, "Next_Return"]
+                    X_test = data_expanded.loc[dates[-1], expanded_feat_names]
 
-                    model_latest = RidgeCV(alphas=alphas_range).fit(X_train_latest, y_train_latest)
-                    preds_latest = model_latest.predict(X_test_latest)
+                    model_latest = RidgeCV(alphas=alphas_range).fit(X_tr, y_tr)
+                    preds_latest = model_latest.predict(X_test)
 
                     latest_results = pd.DataFrame({
-                        "股票代碼": X_test_latest.index.get_level_values("Stock"),
+                        "股票代碼": X_test.index.get_level_values("Stock"),
                         "預測Alpha": preds_latest
                     })
                     latest_results["股票名稱"] = latest_results["股票代碼"].map(ALL_STOCK_MAP)
